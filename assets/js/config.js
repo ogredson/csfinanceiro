@@ -1,0 +1,4 @@
+window.CONFIG = {
+  supabaseUrl: 'https://eusvfvabcmtzsrspzckm.supabase.co',
+  supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1c3ZmdmFiY210enNyc3B6Y2ttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1Mzc0MDAsImV4cCI6MjA3NjExMzQwMH0.s72uw4bxpSuYx9VfIMfLHydSxV3xz8JMtrFRudXRefQ',
+};
