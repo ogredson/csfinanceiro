@@ -133,3 +133,5 @@ body {
 .status-cancelado { background: rgba(99,102,241,0.12); color: #818CF8; border: 1px solid rgba(99,102,241,0.6); }
 
 .empty-state { text-align: center; color: var(--muted); padding: 24px; }
+.days-text { transition: color 160ms ease-in-out; }
+.days-highlight { font-weight: 600; text-decoration: none; }

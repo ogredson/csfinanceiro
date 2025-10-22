@@ -1,5 +1,5 @@
 import { db } from '../supabaseClient.js';
-import { showToast, formatCurrency, parseCurrency, formatDate, sum, setLoading, debounce } from '../utils.js';
+import { showToast, formatCurrency, parseCurrency, formatDate, setLoading, debounce, exportToCSV } from '../utils.js';
 import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
@@ -200,6 +200,7 @@ export async function renderPagamentos(app) {
       </div>
       <div>
         <button id="newPay" class="btn btn-primary">Novo</button>
+        <button id="relatorioDespesas" class="btn btn-outline">Relatório de despesas</button>
       </div>
     </div>
     <div class="card" id="listCard"></div>
@@ -215,6 +216,7 @@ export async function renderPagamentos(app) {
   let sortField = 'data_vencimento';
   let sortDir = 'asc';
   let loadVersion = 0;
+  let lastExportRows = [];
 
   function ilike(hay, needle) { if (!needle) return true; return (hay || '').toString().toLowerCase().includes((needle||'').toLowerCase()); }
 
@@ -290,10 +292,12 @@ export async function renderPagamentos(app) {
     // Helpers para atraso e rótulo de dias
     function diffDias(dateStr) {
       if (!dateStr) return null;
-      const d = new Date(dateStr);
+      const parts = (dateStr || '').split('-').map(Number);
+      const [y, m, d] = parts;
+      if (!y || !m || !d) return null;
+      const due = new Date(y, m - 1, d); // local midnight
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const due = new Date(d.getFullYear(), d.getMonth(), d.getDate());
       const ms = due.getTime() - today.getTime();
       return Math.round(ms / 86400000);
     }
@@ -312,6 +316,40 @@ export async function renderPagamentos(app) {
       return `${dd} dias a vencer`;
     }
 
+    function diasMarkup(row) {
+      // retorna span com estilo de cor dinâmico conforme regra
+      if (!row.data_vencimento || row.status !== 'pendente') return '—';
+      const dd = diffDias(row.data_vencimento);
+      if (dd === null) return '—';
+      let text = '';
+      let hue = 30; // base quente
+      let sat = 75;
+      let light = 42;
+      let highlight = false;
+      if (dd < 0) {
+        const overdue = Math.abs(dd);
+        text = `${overdue} dias vencidos`;
+        // quanto mais vencido, mais próximo do vermelho (0)
+        hue = Math.max(0, 15 - Math.min(15, overdue));
+        sat = 85;
+        light = 40;
+        if (overdue >= 10) highlight = true;
+      } else if (dd === 0) {
+        text = 'vence hoje';
+        hue = 10; sat = 85; light = 38;
+        highlight = true;
+      } else {
+        text = `${dd} dias a vencer`;
+        // quanto mais distante, mais quente (amarelo -> laranja)
+        hue = Math.max(20, 45 - Math.min(25, dd));
+        sat = 70;
+        light = 42;
+        if (dd > 30) highlight = true;
+      }
+      const style = `color: hsl(${hue}, ${sat}%, ${light}%);`;
+      const cls = `days-text${highlight ? ' days-highlight' : ''}`;
+      return `<span class="${cls}" style="${style}">${text}</span>`;
+    }
     const nameFiltered = serverMode ? enriched : enriched.filter(r => ilike(r.fornecedor_nome, qFor) && ilike(r.categoria_nome, qCat) && ilike(r.forma_pagamento_nome, qForma));
     const filtered = (filters.onlyOverdue) ? nameFiltered.filter(r => isOverdue(r)) : nameFiltered;
 
@@ -334,6 +372,8 @@ export async function renderPagamentos(app) {
       return sortDir === 'asc' ? cmp : -cmp;
     });
 
+    lastExportRows = sorted;
+
     if (!serverMode) {
       totalPages = Math.max(1, Math.ceil(sorted.length / perPage));
       if (page > totalPages) page = totalPages;
@@ -352,7 +392,7 @@ export async function renderPagamentos(app) {
         { key: 'valor_pago', label: 'Pago', render: v => `${formatCurrency(v)}` },
         { key: 'data_pagamento', label: 'Pag.' },
         { key: 'data_vencimento', label: 'Venc.' },
-        { key: 'dias_vencimento', label: 'Dias', render: (_v, r) => diasLabel(r) },
+        { key: 'dias_vencimento', label: 'Dias', render: (_v, r) => diasMarkup(r) },
         { key: 'status', label: 'Status', render: v => `<span class="status-pill status-${v}">${v}</span>` },
         { key: 'tipo_pagamento', label: 'Tipo' },
       ],
@@ -404,5 +444,53 @@ export async function renderPagamentos(app) {
   document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; page = 1; load(); });
   document.getElementById('sortDir').addEventListener('change', (e) => { sortDir = e.target.value; page = 1; load(); });
   document.getElementById('newPay').addEventListener('click', openCreate);
+  document.getElementById('relatorioDespesas').addEventListener('click', () => {
+    try {
+      if (!lastExportRows || !lastExportRows.length) {
+        showToast('Nada para exportar no resultado atual', 'warning');
+        return;
+      }
+      function diffDiasLocal(dateStr) {
+        if (!dateStr) return null;
+        const parts = (dateStr || '').split('-').map(Number);
+        const [y, m, d] = parts; if (!y || !m || !d) return null;
+        const due = new Date(y, m - 1, d);
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const ms = due.getTime() - today.getTime();
+        return Math.round(ms / 86400000);
+      }
+      function diasTextLocal(row) {
+        if (!row.data_vencimento || row.status !== 'pendente') return '—';
+        const dd = diffDiasLocal(row.data_vencimento);
+        if (dd === null) return '—';
+        if (dd < 0) return `${Math.abs(dd)} dias vencidos`;
+        if (dd === 0) return 'vence hoje';
+        return `${dd} dias a vencer`;
+      }
+      const rowsOut = lastExportRows.map(r => ({
+        descricao: r.descricao,
+        fornecedor: r.fornecedor_nome,
+        categoria: r.categoria_nome,
+        forma: r.forma_pagamento_nome,
+        valor_esperado: r.valor_esperado,
+        valor_pago: r.valor_pago,
+        data_pagamento: r.data_pagamento || '',
+        data_vencimento: r.data_vencimento || '',
+        dias: diasTextLocal(r),
+        status: r.status,
+        tipo: r.tipo_pagamento,
+      }));
+      const ts = new Date();
+      const stamp = `${ts.getFullYear()}-${String(ts.getMonth()+1).padStart(2,'0')}-${String(ts.getDate()).padStart(2,'0')}_${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}`;
+      exportToCSV(`relatorio_despesas_${stamp}.csv`, rowsOut);
+      showToast('Relatório de despesas exportado (CSV) com sucesso', 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('Falha ao gerar relatório de despesas', 'error');
+    }
+  });
   await load();
 }
+
+;
