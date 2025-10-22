@@ -35,7 +35,7 @@ function getCliFormValues(modal) {
 
 async function openCreate() {
   const { modal, close } = createModal({ title: 'Novo Cliente', content: clienteForm(), actions: [
-    { label: 'Cancelar', className: 'btn btn-outline', onClick: ({ close }) => close() },
+    { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
     { label: 'Salvar', className: 'btn btn-primary', onClick: async ({ close }) => {
       const values = getCliFormValues(modal);
       const { error } = await db.insert('clientes', values);
@@ -47,12 +47,17 @@ async function openCreate() {
 
 async function openEdit(row) {
   const { modal, close } = createModal({ title: 'Editar Cliente', content: clienteForm(row), actions: [
-    { label: 'Cancelar', className: 'btn btn-outline', onClick: ({ close }) => close() },
+    { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
     { label: 'Atualizar', className: 'btn btn-primary', onClick: async ({ close }) => {
       const values = getCliFormValues(modal);
       const { error } = await db.update('clientes', row.id, values);
-      if (error) showToast(error.message||'Erro ao atualizar', 'error'); else { showToast('Cliente atualizado', 'success'); close(); }
-      window.location.hash = '#/clientes';
+      if (error) {
+        showToast(error.message||'Erro ao atualizar', 'error');
+      } else {
+        showToast('Cliente atualizado', 'success');
+        close();
+        window.dispatchEvent(new Event('hashchange'));
+      }
     }}
   ] });
 }
@@ -147,7 +152,7 @@ export async function renderClientes(app) {
   }
 
   document.getElementById('newCli').addEventListener('click', openCreate);
-  document.getElementById('applySearchCli').addEventListener('click', () => { q = document.getElementById('qCli').value.trim(); page = 1; renderList(); });
+  document.getElementById('applySearchCli').addEventListener('click', async () => { q = document.getElementById('qCli').value.trim(); page = 1; await load(); });
   document.getElementById('qCli').addEventListener('input', (e) => { q = e.target.value.trim(); page = 1; renderList(); });
   await load();
 }

@@ -129,7 +129,7 @@ body {
 .status-pendente { background: #1E293B; color: #F8FAFC; border: 1px solid #334155; }
 .status-recebido { background: rgba(16,185,129,0.12); color: var(--success); border: 1px solid rgba(16,185,129,0.6); }
 .status-pago { background: rgba(16,185,129,0.12); color: var(--success); border: 1px solid rgba(16,185,129,0.6); }
-.status-atrasado { background: rgba(239,68,68,0.12); color: var(--danger); border: 1px solid rgba(239,68,68,0.6); }
+
 .status-cancelado { background: rgba(99,102,241,0.12); color: #818CF8; border: 1px solid rgba(99,102,241,0.6); }
 
 .empty-state { text-align: center; color: var(--muted); padding: 24px; }

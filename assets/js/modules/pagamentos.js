@@ -63,7 +63,7 @@ function pagamentoForm(initial = {}, lookups = { fornecedores: [], categorias: [
           <select id="status">
             <option value="pendente" ${initial.status==='pendente'?'selected':''}>Pendente</option>
             <option value="pago" ${initial.status==='pago'?'selected':''}>Pago</option>
-            <option value="atrasado" ${initial.status==='atrasado'?'selected':''}>Atrasado</option>
+            
             <option value="cancelado" ${initial.status==='cancelado'?'selected':''}>Cancelado</option>
           </select>
         </div>
@@ -145,8 +145,13 @@ async function openEdit(row) {
       if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
       if (nomeForma && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
       const { error } = await db.update('pagamentos', row.id, values);
-      if (error) showToast(error.message||'Erro ao atualizar', 'error'); else { showToast('Pagamento atualizado', 'success'); close(); }
-      window.location.hash = '#/pagamentos';
+      if (error) {
+        showToast(error.message||'Erro ao atualizar', 'error');
+      } else {
+        showToast('Pagamento atualizado', 'success');
+        close();
+        window.location.hash = '#/pagamentos';
+      }
     }}
   ] });
 }
@@ -167,13 +172,16 @@ export async function renderPagamentos(app) {
   app.innerHTML = `
     <div class="toolbar">
       <div class="filters">
-        <select id="fStatus"><option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option><option value="atrasado">Atrasado</option><option value="cancelado">Cancelado</option></select>
+        <select id="fStatus"><option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option><option value="cancelado">Cancelado</option></select>
         <select id="fTipo"><option value="">Todos</option><option value="fixo">Fixo</option><option value="variavel">Variável</option><option value="parcelado">Parcelado</option></select>
         <input type="date" id="fDe" />
         <input type="date" id="fAte" />
         <input id="fForNome" placeholder="Fornecedor (nome)" />
         <input id="fCategoriaNome" placeholder="Categoria (nome)" />
         <input id="fFormaNome" placeholder="Forma de pagamento (nome)" />
+        <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;">
+          <input type="checkbox" id="fOnlyOverdue" /> Somente em atraso
+        </label>
         <button id="applyFilters" class="btn btn-outline">Filtrar</button>
         <select id="sortField" style="margin-left:8px;">
           <option value="data_vencimento" selected>Ordenar por Data Venc.</option>
@@ -279,7 +287,33 @@ export async function renderPagamentos(app) {
       forma_pagamento_nome: mapForma.get(r.forma_pagamento_id) || '—',
     }));
 
-    const filtered = serverMode ? enriched : enriched.filter(r => ilike(r.fornecedor_nome, qFor) && ilike(r.categoria_nome, qCat) && ilike(r.forma_pagamento_nome, qForma));
+    // Helpers para atraso e rótulo de dias
+    function diffDias(dateStr) {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const due = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const ms = due.getTime() - today.getTime();
+      return Math.round(ms / 86400000);
+    }
+    function isOverdue(row) {
+      if (row.status !== 'pendente') return false;
+      const dd = diffDias(row.data_vencimento);
+      return dd !== null && dd < 0;
+    }
+    function diasLabel(row) {
+      if (!row.data_vencimento) return '—';
+      if (row.status !== 'pendente') return '—';
+      const dd = diffDias(row.data_vencimento);
+      if (dd === null) return '—';
+      if (dd < 0) return `${Math.abs(dd)} dias vencidos`;
+      if (dd === 0) return `vence hoje`;
+      return `${dd} dias a vencer`;
+    }
+
+    const nameFiltered = serverMode ? enriched : enriched.filter(r => ilike(r.fornecedor_nome, qFor) && ilike(r.categoria_nome, qCat) && ilike(r.forma_pagamento_nome, qForma));
+    const filtered = (filters.onlyOverdue) ? nameFiltered.filter(r => isOverdue(r)) : nameFiltered;
 
     function getSortVal(obj, key) {
       const v = obj[key];
@@ -318,6 +352,7 @@ export async function renderPagamentos(app) {
         { key: 'valor_pago', label: 'Pago', render: v => `${formatCurrency(v)}` },
         { key: 'data_pagamento', label: 'Pag.' },
         { key: 'data_vencimento', label: 'Venc.' },
+        { key: 'dias_vencimento', label: 'Dias', render: (_v, r) => diasLabel(r) },
         { key: 'status', label: 'Status', render: v => `<span class="status-pill status-${v}">${v}</span>` },
         { key: 'tipo_pagamento', label: 'Tipo' },
       ],
@@ -326,12 +361,7 @@ export async function renderPagamentos(app) {
       perPage,
       actions: [
         { label: 'Editar', className: 'btn btn-outline', onClick: r => openEdit(r) },
-        { label: 'Excluir', className: 'btn btn-danger', onClick: async r => {
-          const ok = confirm(`Confirma a exclusão de "${r.descricao}"? Esta ação não pode ser desfeita.`);
-          if (!ok) return;
-          const { error } = await db.remove('pagamentos', r.id);
-          if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); load(); }
-        } },
+        { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const ok = confirm(`Confirma a exclusão de "${r.descricao}"? Esta ação não pode ser desfeita.`); if (!ok) return; const { error } = await db.remove('pagamentos', r.id); if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); load(); } } },
         { label: 'Pago', className: 'btn btn-success', onClick: r => markPago(r) },
       ],
     });
@@ -364,6 +394,7 @@ export async function renderPagamentos(app) {
     filters.tipo_pagamento = document.getElementById('fTipo').value || undefined;
     filters.de = document.getElementById('fDe').value || undefined;
     filters.ate = document.getElementById('fAte').value || undefined;
+    filters.onlyOverdue = document.getElementById('fOnlyOverdue').checked || undefined;
     page = 1;
     load();
   });

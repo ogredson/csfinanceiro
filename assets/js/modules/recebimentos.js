@@ -62,7 +62,7 @@ function recebimentoForm(initial = {}, lookups = { clientes: [], categorias: [],
           <select id="status">
             <option value="pendente" ${initial.status==='pendente'?'selected':''}>Pendente</option>
             <option value="recebido" ${initial.status==='recebido'?'selected':''}>Recebido</option>
-            <option value="atrasado" ${initial.status==='atrasado'?'selected':''}>Atrasado</option>
+            
             <option value="cancelado" ${initial.status==='cancelado'?'selected':''}>Cancelado</option>
           </select>
         </div>
@@ -142,8 +142,13 @@ async function openEdit(row) {
       if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
       if (nomeFor && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
       const { error } = await db.update('recebimentos', row.id, values);
-      if (error) showToast(error.message||'Erro ao atualizar', 'error'); else { showToast('Recebimento atualizado', 'success'); close(); }
-      window.location.hash = '#/recebimentos';
+      if (error) {
+        showToast(error.message||'Erro ao atualizar', 'error');
+      } else {
+        showToast('Recebimento atualizado', 'success');
+        close();
+        window.location.hash = '#/recebimentos';
+      }
     }}
   ] });
 }
@@ -198,13 +203,16 @@ export async function renderRecebimentos(app) {
   app.innerHTML = `
     <div class="toolbar">
       <div class="filters">
-        <select id="fStatus"><option value="">Todos</option><option value="pendente">Pendente</option><option value="recebido">Recebido</option><option value="atrasado">Atrasado</option><option value="cancelado">Cancelado</option></select>
-        <select id="fTipo"><option value="">Todos</option><option value="fixo">Fixo</option><option value="variavel">Variável</option><option value="comissao">Comissão</option></select>
+        <select id="fStatus"><option value="">Todos</option><option value="pendente">Pendente</option><option value="recebido">Recebido</option><option value="cancelado">Cancelado</option></select>
+        <select id="fTipo"><option value="">Todos</option><option value="mensal">Mensal</option><option value="avulso">Avulso</option><option value="projeto">Projeto</option></select>
         <input type="date" id="fDe" />
         <input type="date" id="fAte" />
         <input id="fCliNome" placeholder="Cliente (nome)" />
         <input id="fCategoriaNome" placeholder="Categoria (nome)" />
         <input id="fFormaNome" placeholder="Forma de recebimento (nome)" />
+        <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;">
+          <input type="checkbox" id="fOnlyOverdue" /> Somente em atraso
+        </label>
         <button id="applyFilters" class="btn btn-outline">Filtrar</button>
         <select id="sortField" style="margin-left:8px;">
           <option value="data_vencimento" selected>Ordenar por Data Venc.</option>
@@ -314,8 +322,34 @@ export async function renderRecebimentos(app) {
       forma_pagamento_nome: mapForma.get(r.forma_pagamento_id) || '—',
     }));
   
-    const filtered = serverMode ? enriched : enriched.filter(r => ilike(r.cliente_nome, qCli) && ilike(r.categoria_nome, qCat) && ilike(r.forma_pagamento_nome, qForma));
-  
+    // Helpers para atraso e rótulo de dias
+    function diffDias(dateStr) {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const due = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const ms = due.getTime() - today.getTime();
+      return Math.round(ms / 86400000);
+    }
+    function isOverdue(row) {
+      if (row.status !== 'pendente') return false;
+      const dd = diffDias(row.data_vencimento);
+      return dd !== null && dd < 0;
+    }
+    function diasLabel(row) {
+      if (!row.data_vencimento) return '—';
+      if (row.status !== 'pendente') return '—';
+      const dd = diffDias(row.data_vencimento);
+      if (dd === null) return '—';
+      if (dd < 0) return `${Math.abs(dd)} dias vencidos`;
+      if (dd === 0) return `vence hoje`;
+      return `${dd} dias a vencer`;
+    }
+
+    const nameFiltered = serverMode ? enriched : enriched.filter(r => ilike(r.cliente_nome, qCli) && ilike(r.categoria_nome, qCat) && ilike(r.forma_pagamento_nome, qForma));
+    const filtered = (filters.onlyOverdue) ? nameFiltered.filter(r => isOverdue(r)) : nameFiltered;
+
     function getSortVal(obj, key) {
       const v = obj[key];
       if (v === undefined || v === null) return null;
@@ -354,6 +388,7 @@ export async function renderRecebimentos(app) {
         { key: 'valor_recebido', label: 'Recebido', render: v => `${formatCurrency(v)}` },
         { key: 'data_recebimento', label: 'Rec.' },
         { key: 'data_vencimento', label: 'Venc.' },
+        { key: 'dias_vencimento', label: 'Dias', render: (_v, r) => diasLabel(r) },
         { key: 'status', label: 'Status', render: v => `<span class="status-pill status-${v}">${v}</span>` },
         { key: 'tipo_recebimento', label: 'Tipo' },
       ],
@@ -362,12 +397,7 @@ export async function renderRecebimentos(app) {
       perPage,
       actions: [
         { label: 'Editar', className: 'btn btn-outline', onClick: r => openEdit(r) },
-        { label: 'Excluir', className: 'btn btn-danger', onClick: async r => {
-          const ok = confirm(`Confirma a exclusão de "${r.descricao}"? Esta ação não pode ser desfeita.`);
-          if (!ok) return;
-          const { error } = await db.remove('recebimentos', r.id);
-          if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); load(); }
-        } },
+        { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const ok = confirm(`Confirma a exclusão de "${r.descricao}"? Esta ação não pode ser desfeita.`); if (!ok) return; const { error } = await db.remove('recebimentos', r.id); if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); load(); } } },
         { label: 'Recebido', className: 'btn btn-success', onClick: r => markRecebido(r) },
       ],
     });
@@ -400,6 +430,7 @@ export async function renderRecebimentos(app) {
     filters.tipo_recebimento = document.getElementById('fTipo').value || undefined;
     filters.de = document.getElementById('fDe').value || undefined;
     filters.ate = document.getElementById('fAte').value || undefined;
+    filters.onlyOverdue = document.getElementById('fOnlyOverdue').checked || undefined;
     page = 1;
     load();
   });

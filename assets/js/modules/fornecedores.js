@@ -35,7 +35,7 @@ function getFornFormValues(modal) {
 
 async function openCreate() {
   const { modal, close } = createModal({ title: 'Novo Fornecedor', content: fornecedorForm(), actions: [
-    { label: 'Cancelar', className: 'btn btn-outline', onClick: ({ close }) => close() },
+    { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
     { label: 'Salvar', className: 'btn btn-primary', onClick: async ({ close }) => {
       const values = getFornFormValues(modal);
       const { error } = await db.insert('fornecedores', values);
@@ -47,12 +47,17 @@ async function openCreate() {
 
 async function openEdit(row) {
   const { modal, close } = createModal({ title: 'Editar Fornecedor', content: fornecedorForm(row), actions: [
-    { label: 'Cancelar', className: 'btn btn-outline', onClick: ({ close }) => close() },
+    { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
     { label: 'Atualizar', className: 'btn btn-primary', onClick: async ({ close }) => {
       const values = getFornFormValues(modal);
       const { error } = await db.update('fornecedores', row.id, values);
-      if (error) showToast(error.message||'Erro ao atualizar', 'error'); else { showToast('Fornecedor atualizado', 'success'); close(); }
-      window.location.hash = '#/fornecedores';
+      if (error) {
+        showToast(error.message||'Erro ao atualizar', 'error');
+      } else {
+        showToast('Fornecedor atualizado', 'success');
+        close();
+        window.dispatchEvent(new Event('hashchange'));
+      }
     }}
   ] });
 }
@@ -147,7 +152,7 @@ export async function renderFornecedores(app) {
   }
 
   document.getElementById('newForn').addEventListener('click', openCreate);
-  document.getElementById('applySearchForn').addEventListener('click', () => { q = document.getElementById('qForn').value.trim(); page = 1; renderList(); });
+  document.getElementById('applySearchForn').addEventListener('click', async () => { q = document.getElementById('qForn').value.trim(); page = 1; await load(); });
   document.getElementById('qForn').addEventListener('input', (e) => { q = e.target.value.trim(); page = 1; renderList(); });
   await load();
 }

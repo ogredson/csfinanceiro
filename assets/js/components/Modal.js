@@ -17,7 +17,7 @@ export function createModal({ title = 'Modal', content = '', actions = [] } = {}
   actions.forEach(({ label, className = 'btn btn-primary', onClick }) => {
     const btn = document.createElement('button');
     btn.className = className; btn.textContent = label;
-    btn.addEventListener('click', async () => { if (onClick) await onClick({ backdrop, modal }); });
+    btn.addEventListener('click', async () => { if (onClick) await onClick({ backdrop, modal, close }); });
     footer.appendChild(btn);
   });
   const close = () => { backdrop.classList.remove('open'); document.body.removeChild(backdrop); };
