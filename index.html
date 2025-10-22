@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CS Financeiro — Controle Financeiro SaaS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="node_modules/@supabase/supabase-js/dist/umd/supabase.js"></script>
+    <!-- Opcional: crie assets/js/config.js com suas credenciais Supabase -->
+    <script defer src="assets/js/config.js"></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <button id="toggleSidebar" class="icon-button" aria-label="Abrir menu">☰</button>
+      <div class="brand">CS Financeiro</div>
+      <nav class="header-actions">
+        <button id="logoutBtn" class="btn btn-outline">Sair</button>
+      </nav>
+    </header>
+
+    <aside class="app-sidebar" id="sidebar">
+      <nav>
+        <a href="#/dashboard" data-route>Dashboard</a>
+        <a href="#/recebimentos" data-route>Recebimentos</a>
+        <a href="#/pagamentos" data-route>Pagamentos</a>
+        <a href="#/clientes" data-route>Clientes</a>
+        <a href="#/fornecedores" data-route>Fornecedores</a>
+        <a href="#/relatorios" data-route>Relatórios</a>
+        <a href="#/configuracoes" data-route>Configurações</a>
+      </nav>
+    </aside>
+
+    <main class="app-main">
+      <div id="app"></div>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="assets/js/app.js"></script>
+  </body>
+</html>

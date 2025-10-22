@@ -1,0 +1,152 @@
+Prompt para Trae.ai - Sistema de Controle Financeiro para Software House
+🎯 Contexto do Projeto
+Estou desenvolvendo um sistema web responsivo de controle financeiro para minha software house que trabalha com aluguel de software (SaaS). 
+O backend já está criado no Supabase com todas as tabelas estruturadas segundo esse arquivo: 
+Preciso do frontend completo em JavaScript.
+
+🗃️ Estrutura do Banco (Já Implementada no Supabase)
+Tabelas principais:
+profiles - usuários
+clientes - clientes da software house
+fornecedores - fornecedores da software house
+categorias - categorias de entrada/saída pré-definidas
+formas_pagamento - PIX, boleto, cartão, etc.
+recebimentos - contas a receber (mensalidades, projetos, treinamentos)
+pagamentos - contas a pagar (fixos, variáveis, comissões)
+
+🎨 Requisitos do Frontend
+Tecnologias:
+JavaScript 
+CSS3 com design responsivo (Mobile First)
+index.html
+📱 Telas e Funcionalidades Principais
+1. Sistema de Autenticação
+Login/senha
+Logout 
+
+2. Dashboard Principal
+javascript
+// Métricas em tempo real:
+- Saldo total consolidado
+- MRR (Monthly Recurring Revenue)
+- Recebimentos pendentes (30 dias)
+- Pagamentos pendentes (30 dias)
+- Fluxo de caixa mensal (gráfico)
+- Top clientes (receita)
+- Top fornecedores (despesas)
+
+3. Módulo de Recebimentos
+CRUD completo de recebimentos
+Filtros: status, data, cliente, tipo
+Marcar como recebido
+Gerar recibos
+Previsão de receita
+
+4. Módulo de Pagamentos
+CRUD completo de pagamentos
+Filtros: status, data, categoria
+Marcar como pago
+Controle de comissões
+Relatório de despesas
+
+5. Gestão de Clientes
+Cadastro completo de clientes
+Histórico de recebimentos por cliente
+Status do cliente (ativo/inativo)
+
+6. Relatórios e Analytics
+javascript
+// Relatórios necessários:
+- Fluxo de Caixa (entradas vs saídas)
+- MRR e Churn Rate
+- Receita por categoria/tipo
+- Despesas por categoria
+- Performance por cliente
+- Projeções futuras
+
+7. Configurações
+Gerenciar categorias
+Configurar formas de pagamento
+Backup de dados com exportação para excel
+
+🎯 Funcionalidades Específicas do Negócio
+Para Recebimentos Recorrentes (SaaS):
+Controle de mensalidades automáticas
+Identificação de clientes com pagamentos atrasados
+Cálculo de MRR (Monthly Recurring Revenue)
+Para Projetos Avulsos:
+Registro de treinamentos
+Controle de implantações
+Gestão de desenvolvimento customizado
+Para Comissões:
+Cálculo automático de comissões
+Relatório por vendedor
+Previsão de pagamentos
+
+📊 Componentes de UI/UX
+Dashboard Components:
+Cards de métricas com atualização em tempo real
+Gráfico de fluxo de caixa
+Tabela de últimos movimentos
+Alertas de vencimentos próximos
+Formulários:
+Validação em tempo real
+Máscaras para valores e datas
+Auto-complete para clientes
+Cálculos automáticos
+Listas e Tabelas:
+Paginação
+Ordenação por colunas
+Filtros avançados
+Busca em tempo real
+
+🔄 Integração com Supabase
+Operações CRUD:
+Create, Read, Update, Delete em todas as tabelas
+Operações em lote para registros recorrentes
+
+🎨 Design System
+Cores:
+Primária: #3B82F6 (Azul corporativo)
+Sucesso: #10B981 (Verde)
+Perigo: #EF4444 (Vermelho)
+Aviso: #F59E0B (Laranja)
+Neutro: #6B7280 (Cinza)
+Tipografia:
+Font principal: 'Inter', sans-serif
+
+Tamanhos: 14px base, hierarquia clara
+
+Layout:
+Header fixo com navegação
+Sidebar colapsável (mobile)
+Grid system responsivo
+Cards com sombras suaves
+
+📈 Gráficos e Visualizações
+Gráfico de linha: Fluxo de caixa mensal
+Gráfico de pizza: Receita por categoria
+Gráfico de barras: Comparativo mensal
+Gráfico de área: MRR evolution
+
+🔧 Funcionalidades Técnicas
+Performance:
+Lazy loading de componentes
+Cache inteligente com LocalStorage
+Debounce em buscas
+Virtual scrolling para listas longas
+Segurança:
+Validação de dados no frontend
+Sanitização de inputs
+
+🚀 Entregáveis Esperados
+Dashboard com métricas em tempo real
+CRUD completo para recebimentos e pagamentos
+Gestão de clientes
+Sistema de relatórios com gráficos
+Configurações do sistema
+Design responsivo e profissional
+Documentação básica de uso
+
+Nota para Trae.ai: Por favor, gere o código completo do frontend seguindo esta especificação. Comece pela estrutura de arquivos, depois autenticação, dashboard e módulos principais. 
+Use JavaScript moderno com async/await e garanta que todas as operações com Supabase incluam tratamento de erros adequado.
