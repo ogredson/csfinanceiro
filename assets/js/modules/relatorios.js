@@ -93,6 +93,207 @@ function getMonthNamePtBr(month) {
   return nomes[month - 1] || '';
 }
 
+async function gerarCalendarioRecebimentosPDF(startStr, endStr) {
+  const { jsPDF } = window.jspdf || {};
+  if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  doc.setFont('helvetica','normal');
+  const blue = [0, 64, 192];
+  const margin = 24;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const gridTop = margin + 40; // abaixo do título
+  const colCount = 7; const rowCount = 6;
+  const colW = (pageWidth - margin * 2) / colCount;
+  const totalGridHeight = pageHeight - gridTop - margin;
+
+  const { data: recebimentos } = await db.select('recebimentos', { select: 'id, cliente_id, descricao, valor_esperado, valor_recebido, status, data_vencimento, data_recebimento' });
+  const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
+  const clienteNome = (id) => (clientes||[]).find(c => c.id === id)?.nome || '—';
+
+  const meses = buildMonthArray(startStr, endStr);
+  const diasSemana = ['DOM.','SEG.','TER.','QUA.','QUI.','SEX.','SÁB.'];
+
+  meses.forEach((mesObj, idx) => {
+    if (idx > 0) doc.addPage('a4','landscape');
+    const y = mesObj.year, m = mesObj.month;
+    const titulo = `CALENDÁRIO DE RECEBIMENTOS - ${getMonthNamePtBr(m)} de ${y}`;
+    doc.setTextColor(...blue); doc.setFontSize(18);
+    doc.text(titulo, pageWidth / 2, margin + 10, { align: 'center' });
+
+    // cabeçalho dos dias da semana
+    doc.setFontSize(12); doc.setTextColor(...blue);
+    diasSemana.forEach((ds, i) => {
+      const x = margin + i * colW + 6;
+      doc.text(ds, x, gridTop - 8);
+    });
+
+    // dias do mês e conteúdos
+    const firstDay = new Date(y, m - 1, 1);
+    const startWeekday = firstDay.getDay(); // 0=Dom
+    const daysInMonth = new Date(y, m, 0).getDate();
+
+    // agrupa recebimentos por dia (campo de data)
+    const selField = window._campoDataRelatorios || 'data_vencimento';
+    const dateField = selField === 'data_pagamento' ? 'data_recebimento' : 'data_vencimento';
+    const mmStr = String(m).padStart(2,'0');
+    const rowsMes = (recebimentos||[]).filter(r => ((r[dateField]||'').startsWith(`${y}-${mmStr}`)));
+
+    const porDia = new Map();
+    rowsMes.forEach(r => {
+      const d = Number(((r[dateField]||'').split('-')[2]));
+      const lista = porDia.get(d) || [];
+      const txt = shortenForCalendar(r.descricao || '—');
+      lista.push(txt);
+      porDia.set(d, lista);
+    });
+
+    // calcula necessidade de linhas por dia (com quebra) e peso por semana
+    const weeklyMaxLines = new Array(rowCount).fill(0);
+    const lineHeight = 9; // fonte menor para caber mais linhas
+    doc.setFontSize(7); // fonte dos itens do calendário
+    for (let day = 1; day <= daysInMonth; day++) {
+      const itens = porDia.get(day) || [];
+      let linesNeeded = 0;
+      itens.forEach(t => { linesNeeded += doc.splitTextToSize(t, colW - 12).length; });
+      const pos = startWeekday + (day - 1);
+      const week = Math.floor(pos / colCount);
+      weeklyMaxLines[week] = Math.max(weeklyMaxLines[week], linesNeeded);
+    }
+    // alturas dinâmicas por semana
+    const weights = weeklyMaxLines.map(l => 1 + (l / 5));
+    const sumW = weights.reduce((a,b)=>a+b,0) || 1;
+    const rowHeights = weights.map(w => totalGridHeight * (w / sumW));
+
+    // desenha bordas do grid em azul
+    doc.setDrawColor(...blue);
+    let yCursor = gridTop;
+    for (let r = 0; r <= rowCount; r++) {
+      doc.line(margin, yCursor, pageWidth - margin, yCursor);
+      if (r < rowCount) yCursor += rowHeights[r];
+    }
+    for (let c = 0; c <= colCount; c++) {
+      const xLine = margin + c * colW;
+      doc.line(xLine, gridTop, xLine, gridTop + totalGridHeight);
+    }
+
+    // cabeçalho dos dias da semana
+    doc.setFontSize(12); doc.setTextColor(...blue);
+    const headerY = gridTop - 8;
+    for (let i = 0; i < colCount; i++) { const x = margin + i * colW + 6; doc.text(diasSemana[i], x, headerY); }
+
+    // imprime conteúdo por dia respeitando a altura de cada semana
+    let yStartRow = gridTop;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const pos = startWeekday + (day - 1);
+      const row = Math.floor(pos / colCount);
+      const col = pos % colCount;
+      const x0 = margin + col * colW;
+      const y0 = yStartRow + (row === 0 ? 0 : rowHeights.slice(0, row).reduce((a,b)=>a+b,0));
+
+      // número do dia (azul)
+      doc.setTextColor(...blue); doc.setFontSize(12);
+      doc.text(String(day), x0 + 6, y0 + 16);
+
+      const itens = porDia.get(day) || [];
+      if (itens.length) {
+        // DIFERENÇA: conteúdo em azul (não vermelho)
+        doc.setTextColor(...blue); doc.setFontSize(8);
+        const availableLines = Math.max(0, Math.floor((rowHeights[row] - (16 + 14 + 8)) / lineHeight));
+        let printedLines = 0;
+        let printedItems = 0;
+        for (let i = 0; i < itens.length; i++) {
+          const lines = doc.splitTextToSize(itens[i], colW - 12);
+          for (let j = 0; j < lines.length; j++) {
+            if (printedLines >= availableLines) break;
+            const yy = y0 + 16 + 14 + printedLines * lineHeight;
+            doc.text(lines[j], x0 + 6, yy);
+            printedLines++;
+          }
+          printedItems++;
+          if (printedLines >= availableLines) break;
+        }
+        const remainingItems = itens.length - printedItems;
+        if (remainingItems > 0) { doc.text(`+recebimentos (${remainingItems})`, x0 + 6, y0 + rowHeights[row] - 8); }
+      }
+    }
+
+    // rodapé: totais do mês e legenda
+    const totalMes = sum(rowsMes.map(r => Number(dateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0))));
+    const footerY = pageHeight - margin - 6;
+    doc.setTextColor(...blue); doc.setFontSize(10);
+    const qtdMes = rowsMes.length;
+    doc.text(`Total do mês (${dateField === 'data_recebimento' ? 'por recebimento' : 'por vencimento'}): ${formatCurrency(totalMes)} / Quantidade de recebimentos: ${qtdMes}`,
+      margin, footerY);
+
+    // Página de lista do mês
+    doc.addPage('a4','landscape');
+    doc.setTextColor(...blue); doc.setFontSize(16);
+    doc.text(`Relação de Recebimentos - ${getMonthNamePtBr(m)} de ${y}`, pageWidth / 2, margin + 10, { align: 'center' });
+    const cols = [
+      { label: 'Cliente', width: 200 },
+      { label: 'Descrição', width: 320 },
+      { label: 'Data', width: 90 },
+      { label: 'Valor', width: 110 },
+      { label: 'Status', width: 74 },
+    ];
+    const colX = []; { let acc = margin; for (let i = 0; i < cols.length; i++) { colX.push(acc); acc += cols[i].width; } }
+    const tableTop = margin + 34;
+    // Cabeçalho da tabela
+    doc.setFontSize(11); doc.setTextColor(...blue);
+    for (let i = 0; i < cols.length; i++) { doc.text(cols[i].label, colX[i] + 3, tableTop); }
+    doc.setDrawColor(...blue); doc.line(margin, tableTop + 4, pageWidth - margin, tableTop + 4);
+
+    const sorted = [...rowsMes].sort((a,b)=>((a[dateField]||'').localeCompare(b[dateField]||'')));
+    doc.setTextColor(0,0,0); doc.setFontSize(10);
+    let yList = tableTop + 16;
+    const makeHeader = () => {
+      doc.setTextColor(...blue); doc.setFontSize(16);
+      doc.text(`Relação de Recebimentos - ${getMonthNamePtBr(m)} de ${y}`, pageWidth / 2, margin + 10, { align: 'center' });
+      doc.setFontSize(11); doc.setTextColor(...blue);
+      for (let i = 0; i < cols.length; i++) { doc.text(cols[i].label, colX[i] + 3, tableTop); }
+      doc.setDrawColor(...blue); doc.line(margin, tableTop + 4, pageWidth - margin, tableTop + 4);
+      doc.setTextColor(0,0,0); doc.setFontSize(10);
+      yList = tableTop + 16;
+    };
+
+    for (let idxRow = 0; idxRow < sorted.length; idxRow++) {
+      const r = sorted[idxRow];
+      const nome = clienteNome(r.cliente_id);
+      const desc = r.descricao || '—';
+      const dateStr = r[dateField] || '';
+      const fmt = (dateStr && dateStr.includes('-')) ? `${dateStr.split('-')[2]}/${dateStr.split('-')[1]}/${dateStr.split('-')[0]}` : '—';
+      const valor = Number(dateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
+      const status = r.status || '—';
+      const nomeLines = doc.splitTextToSize(nome, cols[0].width - 6);
+      const descLines = doc.splitTextToSize(desc, cols[1].width - 6);
+      const rowLines = Math.max(nomeLines.length, descLines.length);
+      const lineHeight = 12;
+      const padY = 10;
+      const rowH = padY + lineHeight * rowLines;
+
+      if (yList + rowH + 8 > pageHeight - margin) { doc.addPage('a4','landscape'); makeHeader(); }
+
+      if (idxRow % 2 === 1) {
+        doc.setFillColor(240,240,240);
+        doc.rect(margin, yList - 2, (pageWidth - margin) - margin, rowH + 4, 'F');
+      }
+
+      for (let i = 0; i < nomeLines.length; i++) { doc.text(nomeLines[i], colX[0] + 3, yList + padY + i*lineHeight); }
+      for (let i = 0; i < descLines.length; i++) { doc.text(descLines[i], colX[1] + 3, yList + padY + i*lineHeight); }
+      const yBase = yList + padY + lineHeight - 2;
+      doc.text(fmt, colX[2] + 3, yBase);
+      doc.text(formatCurrency(valor), colX[3] + 3, yBase);
+      doc.text(status, colX[4] + 3, yBase);
+      yList += rowH + 6;
+    }
+  });
+
+  const fname = `calendario_recebimentos_${startStr}_a_${endStr}.pdf`;
+  doc.save(fname);
+  showToast('Calendário de recebimentos gerado em PDF', 'success');
+}
+
 async function gerarCalendarioPagamentosPDF(startStr, endStr) {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
@@ -301,7 +502,7 @@ export async function renderRelatorios(app) {
       <div class="filters" style="display:flex;gap:8px;align-items:center;">
         <label>Início <input type="date" id="dtInicio" /></label>
         <label>Fim <input type="date" id="dtFim" /></label>
-        <label>Campo de data
+        <label id="lblCampoData"><span id="lblCampoDataText">Campo de data</span>
           <select id="campoData">
             <option value="data_vencimento" selected>Por Vencimento</option>
             <option value="data_pagamento">Por Pagamento</option>
@@ -340,6 +541,18 @@ export async function renderRelatorios(app) {
 
   // persistir escolha de campo de data
   const campoSel = document.getElementById('campoData');
+  const campoLabelText = document.getElementById('lblCampoDataText');
+  const optPag = campoSel.querySelector('option[value="data_pagamento"]');
+  const setCampoDataLabels = (tipo) => {
+    if (tipo === 'recebimentos') {
+      optPag.textContent = 'Por Recebimento';
+      campoLabelText.textContent = 'Campo de data (Receitas)';
+    } else {
+      optPag.textContent = 'Por Pagamento';
+      campoLabelText.textContent = 'Campo de data (Pagamentos)';
+    }
+  };
+  setCampoDataLabels('pagamentos');
   window._campoDataRelatorios = campoSel.value;
   campoSel.addEventListener('change', () => { window._campoDataRelatorios = campoSel.value; });
 
@@ -371,12 +584,19 @@ export async function renderRelatorios(app) {
 
   // Eventos dos botões de topo
   document.getElementById('btnCalPag').addEventListener('click', async () => {
+    setCampoDataLabels('pagamentos');
     const dtInicio = document.getElementById('dtInicio').value;
     const dtFim = document.getElementById('dtFim').value;
     window._campoDataRelatorios = document.getElementById('campoData').value;
     try { await gerarCalendarioPagamentosPDF(dtInicio, dtFim); } catch (e) { console.error(e); showToast('Falha ao gerar PDF', 'error'); }
   });
-  document.getElementById('btnCalRec').addEventListener('click', () => { showToast('Gerar Calendário de Recebimentos: em breve', 'info'); });
+  document.getElementById('btnCalRec').addEventListener('click', async () => {
+    setCampoDataLabels('recebimentos');
+    const dtInicio = document.getElementById('dtInicio').value;
+    const dtFim = document.getElementById('dtFim').value;
+    window._campoDataRelatorios = document.getElementById('campoData').value;
+    try { await gerarCalendarioRecebimentosPDF(dtInicio, dtFim); } catch (e) { console.error(e); showToast('Falha ao gerar PDF', 'error'); }
+  });
   document.getElementById('btnFluxo').addEventListener('click', async () => {
     const novoFluxo = await fluxoCaixaComparativo(dtInicio.value, dtFim.value);
     const ch = window._fluxo12mChart;
