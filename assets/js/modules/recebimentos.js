@@ -22,7 +22,7 @@ let LOOKUPS = null;
 async function ensureLookups() {
   if (LOOKUPS) return LOOKUPS;
   const [cliRes, catRes, formaRes] = await Promise.all([
-    db.select('clientes', { select: 'id, nome', orderBy: { column: 'nome', ascending: true } }),
+    db.select('clientes', { select: 'id, nome, documento', orderBy: { column: 'nome', ascending: true } }),
     db.select('categorias', { select: 'id, nome', orderBy: { column: 'nome', ascending: true } }),
     db.select('formas_pagamento', { select: 'id, nome', orderBy: { column: 'nome', ascending: true } }),
   ]);
@@ -30,9 +30,10 @@ async function ensureLookups() {
   const categorias = catRes.data || [];
   const formas = formaRes.data || [];
   const mapCli = new Map(clientes.map(c => [c.id, c.nome]));
+  const mapCliDoc = new Map(clientes.map(c => [c.id, c.documento || '']));
   const mapCat = new Map(categorias.map(c => [c.id, c.nome]));
   const mapForma = new Map(formas.map(f => [f.id, f.nome]));
-  LOOKUPS = { clientes, categorias, formas, mapCli, mapCat, mapForma };
+  LOOKUPS = { clientes, categorias, formas, mapCli, mapCliDoc, mapCat, mapForma };
   return LOOKUPS;
 }
 
@@ -160,22 +161,170 @@ async function markRecebido(row) {
   window.location.hash = '#/recebimentos';
 }
 
-function gerarRecibo(row) {
+function gerarRecibo(row, extra = {}) {
   const win = window.open('', '_blank');
+  const fmtDMY = (s) => {
+    if (!s) return '';
+    const [y,m,d] = (s||'').slice(0,10).split('-');
+    return `${d}/${m}/${y}`;
+  };
+  const formatDocumento = (doc) => {
+    const only = (doc||'').replace(/\D+/g,'');
+    if (only.length === 11) {
+      return `${only.slice(0,3)}.${only.slice(3,6)}.${only.slice(6,9)}-${only.slice(9,11)}`;
+    }
+    if (only.length === 14) {
+      return `${only.slice(0,2)}.${only.slice(2,5)}.${only.slice(5,8)}/${only.slice(8,12)}-${only.slice(12,14)}`;
+    }
+    return doc || '';
+  };
+  const clienteNome = extra.cliente_nome || row.cliente_nome || '';
+  const clienteDoc = formatDocumento(extra.cliente_documento || '');
+  const formaNome = extra.forma_pagamento_nome || row.forma_pagamento_nome || '';
+  const valorFinal = extra.valor_recebido != null ? extra.valor_recebido : (row.valor_recebido || row.valor_esperado);
+  const dataRecISO = extra.data_recebimento || row.data_recebimento || formatDate();
+  const dataRec = fmtDMY(dataRecISO);
+  const descRecibo = extra.descricao_recibo || '';
+  const descricaoPrincipal = row.descricao || '';
   win.document.write(`
-    <html><head><title>Recibo</title><style>body{font-family:Inter,Arial;padding:20px} .tag{padding:4px 8px;border:1px solid #666;border-radius:8px;display:inline-block;margin-bottom:8px}</style></head>
-    <body>
-      <h2>Recibo de Pagamento</h2>
-      <div class="tag">${row.id}</div>
-      <p><strong>Descrição:</strong> ${row.descricao}</p>
-      <p><strong>Valor:</strong> ${formatCurrency(row.valor_recebido || row.valor_esperado)}</p>
-      <p><strong>Data Recebimento:</strong> ${row.data_recebimento || formatDate()}</p>
-      <hr/>
-      <p>Emitido automaticamente pelo CS Financeiro.</p>
-      <script>window.print()</script>
-    </body></html>
+    <html>
+      <head>
+        <meta charset=\"utf-8\" />
+        <title>Recibo</title>
+        <style>
+          body{font-family:Inter,Arial,'Segoe UI',sans-serif;color:#333;}
+          .container{max-width:900px;margin:0 auto;padding:24px 28px;}
+          .header{text-align:center;margin-bottom:18px;}
+          .header h1{font-size:20px;margin:6px 0 0 0;}
+          .header .company{font-weight:600;}
+          .header .small{font-size:12px;color:#444;}
+          .divider{height:1px;background:#e5e7eb;margin:16px 0;}
+          .id{font-size:12px;color:#666;margin:6px 0 12px 0;text-align:left}
+          h2{font-size:20px;color:#1f2937;margin:10px 0}
+          h3{font-size:18px;color:#1f2937;margin:12px 0}
+          .section{margin-top:12px}
+          .block{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:12px 14px;margin-top:8px}
+          table{width:100%;border-collapse:collapse;margin-top:8px}
+          th,td{border:1px solid #e5e7eb;padding:12px;text-align:left;vertical-align:top}
+          th{background:#f3f4f6;font-weight:600}
+          .right{text-align:right}
+          .footer{text-align:center;margin-top:28px;color:#4b5563;font-size:12px}
+          .footer .paydate{font-size:16px;color:#111;font-weight:600}
+        </style>
+      </head>
+      <body>
+        <div class=\"container\">
+          <div class=\"header\">
+            <div class=\"company\">CONNECT SOFT SERVIÇOS LTDA</div>
+            <div class=\"small\">Rua D (Lot Centro Sul), 81 – Sala 01 Parangaba – Fortaleza – CE – Cep: 60.740-145</div>
+            <div class=\"small\">CNPJ: 03.609.246/0001-53</div>
+            <h1>RECIBO DE PAGAMENTO</h1>
+          </div>
+          <div class=\"id\"><strong>ID:</strong> ${row.id}</div>
+          <div class=\"divider\"></div>
+
+          <div class=\"section\">
+            <h3>Dados do Cliente</h3>
+            <div class=\"block\">
+              <p><strong>${clienteNome}</strong></p>
+              <p><strong>CNPJ/CPF:</strong> ${clienteDoc || '—'}</p>
+            </div>
+          </div>
+
+          <div class=\"section\">
+            <h3>Descrição:</h3>
+            <div class=\"block\">${descricaoPrincipal || ''}</div>
+          </div>
+
+          <div class=\"section\">
+            <h3>Detalhes do Pagamento</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Observação</th>
+                  <th>Forma de Pagamento</th>
+                  <th class=\"right\">Valor (R$)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>${descRecibo || ''}</td>
+                  <td>${formaNome || ''}</td>
+                  <td class=\"right\">${formatCurrency(valorFinal)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class=\"footer\">
+            <div class=\"paydate\"><strong>Data do Pagamento:</strong> ${dataRec}</div>
+            <div class=\"divider\"></div>
+            <div>Connect Soft Serviços Ltda | CNPJ: 03.609.246/0001-53 | +55 (85) 3055.1739 | financeiro@connectsoft.com.br</div>
+          </div>
+        </div>
+        <script>window.print()</script>
+      </body>
+    </html>
   `);
   win.document.close();
+}
+
+async function openRecebido(row) {
+  const lookups = await ensureLookups();
+  const initial = {
+    cliente_nome: lookups.mapCli.get(row.cliente_id) || '',
+    descricao: row.descricao || '',
+    data_vencimento: row.data_vencimento || '',
+    forma_pagamento_nome: lookups.mapForma.get(row.forma_pagamento_id) || '',
+    valor_esperado: row.valor_esperado || 0,
+    data_recebimento: row.data_recebimento || formatDate(),
+    valor_recebido: row.valor_recebido || row.valor_esperado || 0,
+    observacoes: row.observacoes || ''
+  };
+  const content = `
+    <form id=\"recbForm\">
+      <div class=\"form-row\">
+        <div class=\"field\"><label>Nome</label><input id=\"cliente_nome\" value=\"${initial.cliente_nome}\" disabled/></div>
+        <div class=\"field\"><label>Descrição</label><input id=\"descricao\" value=\"${initial.descricao}\" disabled/></div>
+        <div class=\"field\"><label>Data do Vencimento</label><input type=\"date\" id=\"data_vencimento\" value=\"${initial.data_vencimento}\" disabled/></div>
+        <div class=\"field\"><label>Forma de Pagamento</label>
+          <input id=\"forma_nome\" list=\"recFormaOptions\" value=\"${initial.forma_pagamento_nome}\" placeholder=\"Selecione a forma\" />
+          <datalist id=\"recFormaOptions\">${(lookups.formas||[]).map(f => `<option value=\"${f.nome}\"></option>`).join('')}</datalist>
+        </div>
+        <div class=\"field\"><label>Valor a Receber</label><input id=\"valor_esperado\" value=\"${formatCurrency(initial.valor_esperado)}\" disabled/></div>
+        <div class=\"field\"><label>Data do Recebimento</label><input type=\"date\" id=\"data_recebimento\" value=\"${initial.data_recebimento}\" /></div>
+        <div class=\"field\"><label>Valor Recebido</label><input id=\"valor_recebido\" value=\"${formatCurrency(initial.valor_recebido)}\" /></div>
+        <div class=\"field\" style=\"grid-column:1/-1\"><label>Descrição para o Recibo</label><textarea id=\"descricao_recibo\" rows=\"3\">${initial.observacoes}</textarea></div>
+      </div>
+    </form>
+  `;
+  const { modal, close } = createModal({ title: 'Dar baixa no recebimento', content, actions: [
+    { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
+    { label: 'Atualizar', className: 'btn btn-primary', onClick: async ({ close }) => {
+      const formaNome = modal.querySelector('#forma_nome')?.value?.trim();
+      const formaId = (lookups.formas||[]).find(f => f.nome === formaNome)?.id || null;
+      if (formaNome && !formaId) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      const dataRec = modal.querySelector('#data_recebimento')?.value || formatDate();
+      const valorRecStr = modal.querySelector('#valor_recebido')?.value || '0';
+      const valorRec = parseCurrency(valorRecStr);
+      const descRecibo = modal.querySelector('#descricao_recibo')?.value || null;
+      const payload = { status: 'recebido', data_recebimento: dataRec, valor_recebido: valorRec, observacoes: descRecibo };
+      if (formaId) payload.forma_pagamento_id = formaId;
+      const { error } = await db.update('recebimentos', row.id, payload);
+      if (error) { showToast(error.message||'Erro ao atualizar recebimento', 'error'); return; }
+      showToast('Recebimento atualizado como "recebido"', 'success');
+      close();
+      window.location.hash = '#/recebimentos';
+    }},
+    { label: 'Emitir Recibo', className: 'btn btn-success', onClick: () => {
+      const formaNome = modal.querySelector('#forma_nome')?.value?.trim() || (lookups.mapForma.get(row.forma_pagamento_id)||'');
+      const dataRec = modal.querySelector('#data_recebimento')?.value || formatDate();
+      const valorRecStr = modal.querySelector('#valor_recebido')?.value || '0';
+      const valorRec = parseCurrency(valorRecStr);
+      const descRecibo = modal.querySelector('#descricao_recibo')?.value || '';
+      gerarRecibo(row, { cliente_nome: lookups.mapCli.get(row.cliente_id)||'', cliente_documento: lookups.mapCliDoc.get(row.cliente_id)||'', forma_pagamento_nome: formaNome, valor_recebido: valorRec, data_recebimento: dataRec, descricao_recibo: descRecibo });
+    }}
+  ]});
 }
 
 async function gerarRecorrencia(baseRow, meses = 6) {
@@ -434,8 +583,8 @@ export async function renderRecebimentos(app) {
       perPage,
       actions: [
         { label: 'Editar', className: 'btn btn-outline', onClick: r => openEdit(r) },
-        { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const ok = confirm(`Confirma a exclusão de "${r.descricao}"? Esta ação não pode ser desfeita.`); if (!ok) return; const { error } = await db.remove('recebimentos', r.id); if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); load(); } } },
-        { label: 'Recebido', className: 'btn btn-success', onClick: r => markRecebido(r) },
+        { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const ok = confirm(`Confirma a exclusão de "${r.descricao}"? Esta ação não pode ser desfeita.`); if (!ok) return; const { error } = await db.remove('recebimentos', r.id); if (error) showToast(error.message||'Erro ao excluir', 'error'); else { showToast('Recebimento excluído', 'success'); window.location.hash = '#/recebimentos'; } } },
+        { label: 'Recebido', className: 'btn btn-success', onClick: r => openRecebido(r) },
       ],
     });
   
