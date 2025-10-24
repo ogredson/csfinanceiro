@@ -135,3 +135,41 @@ body {
 .empty-state { text-align: center; color: var(--muted); padding: 24px; }
 .days-text { transition: color 160ms ease-in-out; }
 .days-highlight { font-weight: 600; text-decoration: none; }
+
+:root.theme-night {
+  /* mantém como está: tema atual escuro */
+}
+
+:root.theme-day {
+  --bg: #F5F7FB;
+  --surface: #FFFFFF;
+  --text: #111827;
+  --muted: #6B7280;
+}
+
+/* Ajustes específicos para cores não tokenizadas no tema dia */
+.theme-day body {
+  background: linear-gradient(180deg, #F5F7FB 0%, #E8EEF7 100%);
+}
+.theme-day .app-header { border-bottom-color: #E5E7EB; }
+.theme-day .app-sidebar { border-right-color: #E5E7EB; }
+.theme-day .app-sidebar a { border-bottom-color: #E5E7EB; }
+.theme-day .app-sidebar a:hover { background: #F1F5F9; }
+.theme-day .app-sidebar a.active { background: rgba(59,130,246,0.12); color: #111827; }
+.theme-day .icon-button { border-color: #CBD5E1; color: #111827; }
+.theme-day .btn-outline { border-color: #CBD5E1; color: #111827; }
+.theme-day .card { border-color: #E5E7EB; }
+.theme-day .table th, .theme-day .table td { border-bottom-color: #E5E7EB; }
+.theme-day .modal { border-color: #E5E7EB; }
+.theme-day .modal header { border-bottom-color: #E5E7EB; }
+.theme-day .modal footer { border-top-color: #E5E7EB; }
+.theme-day .toast { background: #FFFFFF; color: #111827; border-color: #E5E7EB; }
+.theme-day .field input, .theme-day .field select, .theme-day .field textarea {
+  background: #FFFFFF; color: #111827; border-color: #CBD5E1;
+}
+/* Status pills em tema claro */
+.theme-day .status-pendente { background: #F1F5F9; color: #111827; border-color: #E5E7EB; }
+.theme-day .status-recebido, .theme-day .status-pago {
+  background: rgba(16,185,129,0.12); color: #047857; border-color: rgba(16,185,129,0.5);
+}
+.theme-day .status-cancelado { background: rgba(99,102,241,0.10); color: #4338CA; border-color: rgba(99,102,241,0.4); }

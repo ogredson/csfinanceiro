@@ -13,6 +13,21 @@ async function ensureAuth() {
   return true;
 }
 
+function getTheme() {
+  return localStorage.getItem('CSF_THEME') || 'night';
+}
+function applyTheme(theme) {
+  const root = document.documentElement;
+  root.classList.remove('theme-day', 'theme-night');
+  root.classList.add(theme === 'day' ? 'theme-day' : 'theme-night');
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.textContent = theme === 'day' ? '🌞 Dia' : '🌗 Noite';
+}
+function setTheme(theme) {
+  localStorage.setItem('CSF_THEME', theme);
+  applyTheme(theme);
+}
+
 function setupLayoutEvents() {
   const toggle = document.getElementById('toggleSidebar');
   const sidebar = document.getElementById('sidebar');
@@ -23,6 +38,12 @@ function setupLayoutEvents() {
     showToast('Sessão encerrada', 'success');
     window.location.hash = '#/login';
   });
+  const themeBtn = document.getElementById('themeToggle');
+  themeBtn?.addEventListener('click', () => {
+    const next = getTheme() === 'day' ? 'night' : 'day';
+    setTheme(next);
+  });
+  applyTheme(getTheme());
   // Atualiza visual ativo imediatamente ao clicar em qualquer link de rota
   document.querySelectorAll('a[data-route]').forEach(a => {
     a.addEventListener('click', () => {
