@@ -54,28 +54,32 @@ function recebimentoForm(initial = {}, lookups = { clientes: [], categorias: [],
           <input id="forma_nome" list="formaOptions" value="${initial.forma_pagamento_nome||''}" placeholder="Selecione a forma"/>
           <datalist id="formaOptions">${(lookups.formas||[]).map(f => `<option value="${f.nome}"></option>`).join('')}</datalist>
         </div>
-        <div class="field"><label>Valor Esperado</label><input id="valor_esperado" value="${initial.valor_esperado||''}" /></div>
-        <div class="field highlight"><label>Valor Recebido</label><input id="valor_recebido" value="${initial.valor_recebido||''}" /></div>
-        <div class="field"><label>Data Emissão</label><input type="date" id="data_emissao" value="${initial.data_emissao||formatDate()}" /></div>
-        <div class="field"><label>Data Vencimento</label><input type="date" id="data_vencimento" value="${initial.data_vencimento||formatDate()}" required/></div>
-        <div class="field highlight"><label>Data Recebimento</label><input type="date" id="data_recebimento" value="${initial.data_recebimento||''}" /></div>
-        <div class="field"><label>Status</label>
+      </div>
+      <div class="form-inline" style="margin-top:12px">
+        <div class="field sm"><label>Valor Esperado</label><input id="valor_esperado" value="${initial.valor_esperado||''}" /></div>
+        <div class="field sm highlight"><label>Valor Recebido</label><input id="valor_recebido" value="${initial.valor_recebido||''}" /></div>
+        <div class="field sm"><label>Data Emissão</label><input type="date" id="data_emissao" value="${initial.data_emissao||formatDate()}" /></div>
+        <div class="field sm"><label>Data Vencimento</label><input type="date" id="data_vencimento" value="${initial.data_vencimento||formatDate()}" required/></div>
+        <div class="field sm highlight"><label>Data Recebimento</label><input type="date" id="data_recebimento" value="${initial.data_recebimento||''}" /></div>
+        <div class="field sm"><label>Dia do Recebimento</label><input type="number" min="1" max="31" id="dia_recebimento" value="${initial.dia_recebimento||''}" /></div>
+        <div class="field sm"><label>Status</label>
           <select id="status">
             <option value="pendente" ${initial.status==='pendente'?'selected':''}>Pendente</option>
             <option value="recebido" ${initial.status==='recebido'?'selected':''}>Recebido</option>
-            
             <option value="cancelado" ${initial.status==='cancelado'?'selected':''}>Cancelado</option>
           </select>
         </div>
-        <div class="field"><label>Tipo</label>
+        <div class="field sm"><label>Tipo</label>
           <select id="tipo_recebimento">
             <option value="mensal" ${initial.tipo_recebimento==='mensal'?'selected':''}>Mensal</option>
             <option value="avulso" ${initial.tipo_recebimento==='avulso'?'selected':''}>Avulso</option>
             <option value="projeto" ${initial.tipo_recebimento==='projeto'?'selected':''}>Projeto</option>
           </select>
         </div>
-        <div class="field"><label>Parcela Atual</label><input type="number" id="parcela_atual" value="${initial.parcela_atual||1}" /></div>
-        <div class="field"><label>Total Parcelas</label><input type="number" id="total_parcelas" value="${initial.total_parcelas||1}" /></div>
+        <div class="field sm"><label>Parcela Atual</label><input type="number" id="parcela_atual" value="${initial.parcela_atual||1}" /></div>
+        <div class="field sm"><label>Total Parcelas</label><input type="number" id="total_parcelas" value="${initial.total_parcelas||1}" /></div>
+      </div>
+      <div class="form-row" style="margin-top:12px">
         <div class="field full"><label>Observações</label><textarea id="observacoes">${initial.observacoes||''}</textarea></div>
       </div>
     </form>`;
@@ -97,6 +101,7 @@ function getRecFormValues(modal, lookups) {
     data_emissao: getVal('data_emissao') || formatDate(),
     data_vencimento: getVal('data_vencimento'),
     data_recebimento: getVal('data_recebimento') || null,
+    dia_recebimento: (() => { const n = Number(getVal('dia_recebimento')); return (!n || n < 1 || n > 31) ? null : n; })(),
     status: getVal('status'),
     tipo_recebimento: getVal('tipo_recebimento'),
     parcela_atual: Number(getVal('parcela_atual')||1),

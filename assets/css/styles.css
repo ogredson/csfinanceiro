@@ -218,3 +218,10 @@ body {
   color: #f59e0b; /* laranja suave, consistente com a borda do tooltip */
   vertical-align: baseline;
 }
+/* Linha compacta para agrupar campos pequenos (datas e valores) */
+.form-inline { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+.form-inline .field { flex: 0 0 auto; }
+.form-inline .field.sm { width: 160px; }
+.form-inline .field.md { width: 220px; }
+.form-inline .field.lg { width: 320px; }
+.form-inline .stretch { flex: 1 1 auto; min-width: 220px; }

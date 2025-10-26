@@ -53,29 +53,33 @@ function pagamentoForm(initial = {}, lookups = { fornecedores: [], categorias: [
           <input id="forma_nome" list="formaOptions" value="${initial.forma_pagamento_nome||''}" placeholder="Selecione a forma"/>
           <datalist id="formaOptions">${(lookups.formas||[]).map(f => `<option value="${f.nome}"></option>`).join('')}</datalist>
         </div>
-        <div class="field"><label>Beneficiário</label><input id="beneficiario" value="${initial.beneficiario||''}" /></div>
-        <div class="field"><label>Valor Esperado</label><input id="valor_esperado" value="${initial.valor_esperado||''}" /></div>
-        <div class="field highlight"><label>Valor Pago</label><input id="valor_pago" value="${initial.valor_pago||''}" /></div>
-        <div class="field"><label>Data Emissão</label><input type="date" id="data_emissao" value="${initial.data_emissao||formatDate()}" /></div>
-        <div class="field"><label>Data Vencimento</label><input type="date" id="data_vencimento" value="${initial.data_vencimento||formatDate()}" required/></div>
-        <div class="field highlight"><label>Data Pagamento</label><input type="date" id="data_pagamento" value="${initial.data_pagamento||''}" /></div>
-        <div class="field"><label>Status</label>
+      </div>
+      <div class="form-inline" style="margin-top:12px">
+        <div class="field md"><label>Beneficiário</label><input id="beneficiario" value="${initial.beneficiario||''}" /></div>
+        <div class="field sm"><label>Valor Esperado</label><input id="valor_esperado" value="${initial.valor_esperado||''}" /></div>
+        <div class="field sm highlight"><label>Valor Pago</label><input id="valor_pago" value="${initial.valor_pago||''}" /></div>
+        <div class="field sm"><label>Data Emissão</label><input type="date" id="data_emissao" value="${initial.data_emissao||formatDate()}" /></div>
+        <div class="field sm"><label>Data Vencimento</label><input type="date" id="data_vencimento" value="${initial.data_vencimento||formatDate()}" required/></div>
+        <div class="field sm highlight"><label>Data Pagamento</label><input type="date" id="data_pagamento" value="${initial.data_pagamento||''}" /></div>
+        <div class="field sm"><label>Dia do Pagamento</label><input type="number" min="1" max="31" id="dia_pagamento" value="${initial.dia_pagamento||''}" /></div>
+        <div class="field sm"><label>Status</label>
           <select id="status">
             <option value="pendente" ${initial.status==='pendente'?'selected':''}>Pendente</option>
             <option value="pago" ${initial.status==='pago'?'selected':''}>Pago</option>
-            
             <option value="cancelado" ${initial.status==='cancelado'?'selected':''}>Cancelado</option>
           </select>
         </div>
-        <div class="field"><label>Tipo</label>
+        <div class="field sm"><label>Tipo</label>
           <select id="tipo_pagamento">
             <option value="variavel" ${initial.tipo_pagamento==='variavel'?'selected':''}>Variável</option>
             <option value="fixo" ${initial.tipo_pagamento==='fixo'?'selected':''}>Fixo</option>
             <option value="comissao" ${initial.tipo_pagamento==='comissao'?'selected':''}>Comissão</option>
           </select>
         </div>
-        <div class="field"><label>Parcela Atual</label><input type="number" id="parcela_atual" value="${initial.parcela_atual||1}" /></div>
-        <div class="field"><label>Total Parcelas</label><input type="number" id="total_parcelas" value="${initial.total_parcelas||1}" /></div>
+        <div class="field sm"><label>Parcela Atual</label><input type="number" id="parcela_atual" value="${initial.parcela_atual||1}" /></div>
+        <div class="field sm"><label>Total Parcelas</label><input type="number" id="total_parcelas" value="${initial.total_parcelas||1}" /></div>
+      </div>
+      <div class="form-row" style="margin-top:12px">
         <div class="field full"><label>Observações</label><textarea id="observacoes">${initial.observacoes||''}</textarea></div>
       </div>
       <p class="muted">Para comissões, você pode definir o valor esperado com base em uma porcentagem manual.</p>
@@ -99,6 +103,7 @@ function getPagFormValues(modal, lookups) {
     data_emissao: getVal('data_emissao') || formatDate(),
     data_vencimento: getVal('data_vencimento'),
     data_pagamento: getVal('data_pagamento') || null,
+    dia_pagamento: (() => { const n = Number(getVal('dia_pagamento')); return (!n || n < 1 || n > 31) ? null : n; })(),
     status: getVal('status'),
     tipo_pagamento: getVal('tipo_pagamento'),
     parcela_atual: Number(getVal('parcela_atual')||1),
