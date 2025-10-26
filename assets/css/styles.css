@@ -39,7 +39,8 @@ body {
 .btn-outline { background: transparent; border: 1px solid #334155; color: var(--text); }
 .btn-outline:hover { border-color: var(--primary); }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
+/* destaque adicional para botões importantes */
+.btn-prominent { box-shadow: var(--shadow); border: 2px solid rgba(255,255,255,0.08); font-weight: 700; padding: 10px 16px; }
 .app-sidebar {
   position: fixed; top: 56px; left: 0; bottom: 0; width: 240px;
   background: var(--surface);
@@ -225,3 +226,16 @@ body {
 .form-inline .field.md { width: 220px; }
 .form-inline .field.lg { width: 320px; }
 .form-inline .stretch { flex: 1 1 auto; min-width: 220px; }
+/* Blocos de Totais (destacados) */
+.totals-box { display:inline-flex; flex-direction:column; align-items:flex-end; margin-right:12px; padding:10px 14px; border-radius:12px; min-width:240px; color:#fff; box-shadow: 0 8px 24px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.08); }
+.totals-box .t-label { font-size:12px; opacity:.95; letter-spacing:.2px; }
+.totals-box .t-values { font-size:18px; font-weight:800; }
+.totals-rec { background: linear-gradient(135deg, #065f46 0%, #10b981 100%); }
+.totals-pag { background: linear-gradient(135deg, #7c2d12 0%, #f59e0b 100%); }
+.totals-box:hover { filter: brightness(1.06); }
+
+/* Tema claro: versões suavizadas para legibilidade */
+.theme-day .totals-rec { background: linear-gradient(135deg, #D1FAE5 0%, #6EE7B7 100%); color:#064e3b; }
+.theme-day .totals-pag { background: linear-gradient(135deg, #FEF3C7 0%, #FCD34D 100%); color:#7c2d12; }
+/* Blocos de Totais (linha extra para total geral) */
+.totals-box .t-grand { margin-top: 4px; font-size: 14px; font-weight: 700; opacity: .98; }

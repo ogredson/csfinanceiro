@@ -80,7 +80,7 @@ export async function renderClientes(app) {
     <div class="toolbar">
       <div class="filters">
         <input id="qCli" placeholder="Pesquisar (nome, email, telefone, documento)" />
-        <button id="applySearchCli" class="btn btn-outline">Pesquisar</button>
+        <button id="applySearchCli" class="btn btn-primary btn-prominent">🔎 Pesquisar</button>
       </div>
       <div><button id="newCli" class="btn btn-primary">Novo Cliente</button></div>
     </div>
@@ -118,7 +118,7 @@ export async function renderClientes(app) {
       page,
       perPage,
       actions: [
-        { label: 'Editar', className: 'btn btn-outline', onClick: r => openEdit(r) },
+        { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r) },
         { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const { error } = await db.remove('clientes', r.id); if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); await load(); } } },
         { label: 'Histórico', className: 'btn btn-outline', onClick: r => historicoRecebimentos(r.id) },
       ],

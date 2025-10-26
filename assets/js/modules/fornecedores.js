@@ -80,7 +80,7 @@ export async function renderFornecedores(app) {
     <div class="toolbar">
       <div class="filters">
         <input id="qForn" placeholder="Pesquisar (nome, email, telefone, documento)" />
-        <button id="applySearchForn" class="btn btn-outline">Pesquisar</button>
+        <button id="applySearchForn" class="btn btn-primary btn-prominent">🔎 Pesquisar</button>
       </div>
       <div><button id="newForn" class="btn btn-primary">Novo Fornecedor</button></div>
     </div>
@@ -118,7 +118,7 @@ export async function renderFornecedores(app) {
       page,
       perPage,
       actions: [
-        { label: 'Editar', className: 'btn btn-outline', onClick: r => openEdit(r) },
+        { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r) },
         { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const { error } = await db.remove('fornecedores', r.id); if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); await load(); } } },
         { label: 'Histórico', className: 'btn btn-outline', onClick: r => historicoPagamentos(r.id) },
       ],

@@ -4,7 +4,7 @@ import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
 async function fetchPagamentos(filters = {}) {
-  const opts = { select: 'id, fornecedor_id, categoria_id, forma_pagamento_id, descricao, beneficiario, valor_esperado, valor_pago, data_emissao, data_vencimento, data_pagamento, status, tipo_pagamento, parcela_atual, total_parcelas, observacoes' };
+  const opts = { select: 'id, fornecedor_id, categoria_id, forma_pagamento_id, descricao, beneficiario, valor_esperado, valor_pago, data_emissao, data_vencimento, data_pagamento, dia_pagamento, status, tipo_pagamento, parcela_atual, total_parcelas, observacoes' };
   opts.eq = {};
   if (filters.status) opts.eq.status = filters.status;
   if (filters.categoria_id) opts.eq.categoria_id = filters.categoria_id;
@@ -187,7 +187,7 @@ export async function renderPagamentos(app) {
         <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;">
           <input type="checkbox" id="fOnlyOverdue" /> Somente em atraso
         </label>
-        <button id="applyFilters" class="btn btn-outline">Filtrar</button>
+        <button id="applyFilters" class="btn btn-primary btn-prominent">🔎 Filtrar</button>
         <select id="sortField" style="margin-left:8px;">
           <option value="data_vencimento" selected>Ordenar por Data Venc.</option>
           <option value="data_pagamento">Ordenar por Data Pag.</option>
@@ -204,6 +204,10 @@ export async function renderPagamentos(app) {
         </select>
       </div>
       <div>
+        <div id="totalsPag" class="totals-box totals-pag">
+          <div class="t-label">Pago / A Pagar</div>
+          <div class="t-values">R$ 0,00 / R$ 0,00</div>
+        </div>
         <button id="newPay" class="btn btn-primary">Novo</button>
         <button id="relatorioDespesas" class="btn btn-outline">Relatório de despesas</button>
       </div>
@@ -379,6 +383,32 @@ export async function renderPagamentos(app) {
 
     lastExportRows = sorted;
 
+    // totais gerais (todas as linhas que atendem aos filtros/pesquisas)
+    let totalPago = 0, totalAPagar = 0;
+    if (serverMode) {
+      // Busca todas as linhas que atendem aos filtros base (sem paginação) e aplica "Somente em atraso" no cliente
+      const tOpts = { select: 'status, valor_esperado, valor_pago' };
+      tOpts.eq = {};
+      if (filters.status) tOpts.eq.status = filters.status;
+      if (filters.tipo_pagamento) tOpts.eq.tipo_pagamento = filters.tipo_pagamento;
+      if (filters.fornecedor_id) tOpts.eq.fornecedor_id = filters.fornecedor_id;
+      if (filters.de) tOpts.gte = { ...(tOpts.gte||{}), data_vencimento: filters.de };
+      if (filters.ate) tOpts.lte = { ...(tOpts.lte||{}), data_vencimento: filters.ate };
+      const { data: allForTotals } = await db.select('pagamentos', tOpts);
+      const applied = (filters.onlyOverdue ? (allForTotals||[]).filter(r => isOverdue(r)) : (allForTotals||[]));
+      totalPago = applied.reduce((acc, r) => acc + (r.status === 'pago' ? Number(r.valor_pago || 0) : 0), 0);
+      totalAPagar = applied.reduce((acc, r) => acc + (r.status === 'pendente' ? Number(r.valor_esperado || 0) : 0), 0);
+    } else {
+      // Quando há filtros por nome, "filtered" já representa todas as linhas após pesquisa e atraso
+      totalPago = filtered.reduce((acc, r) => acc + (r.status === 'pago' ? Number(r.valor_pago || 0) : 0), 0);
+      totalAPagar = filtered.reduce((acc, r) => acc + (r.status === 'pendente' ? Number(r.valor_esperado || 0) : 0), 0);
+    }
+    const totalsEl = document.getElementById('totalsPag');
+    if (totalsEl) {
+      const valuesEl = totalsEl.querySelector('.t-values');
+      if (valuesEl) valuesEl.textContent = `${formatCurrency(totalPago)} / ${formatCurrency(totalAPagar)}`;
+    }
+
     if (!serverMode) {
       totalPages = Math.max(1, Math.ceil(sorted.length / perPage));
       if (page > totalPages) page = totalPages;
@@ -412,7 +442,7 @@ export async function renderPagamentos(app) {
       page: serverMode ? 1 : page,
       perPage,
       actions: [
-        { label: 'Editar', className: 'btn btn-outline', onClick: r => openEdit(r) },
+        { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r) },
         { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const ok = confirm(`Confirma a exclusão de "${r.descricao}"? Esta ação não pode ser desfeita.`); if (!ok) return; const { error } = await db.remove('pagamentos', r.id); if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); load(); } } },
         { label: 'Pago', className: 'btn btn-success', onClick: r => markPago(r) },
       ],

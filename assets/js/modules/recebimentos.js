@@ -4,7 +4,7 @@ import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
 async function fetchRecebimentos(filters = {}) {
-  const opts = { select: 'id, cliente_id, categoria_id, forma_pagamento_id, descricao, valor_esperado, valor_recebido, data_emissao, data_vencimento, data_recebimento, status, tipo_recebimento, parcela_atual, total_parcelas, observacoes' };
+  const opts = { select: 'id, cliente_id, categoria_id, forma_pagamento_id, descricao, valor_esperado, valor_recebido, data_emissao, data_vencimento, data_recebimento, dia_recebimento, status, tipo_recebimento, parcela_atual, total_parcelas, observacoes' };
   opts.eq = {};
   if (filters.status) opts.eq.status = filters.status;
   if (filters.tipo_recebimento) opts.eq.tipo_recebimento = filters.tipo_recebimento;
@@ -127,6 +127,36 @@ async function openCreate() {
       window.location.hash = '#/recebimentos';
     }}
   ] });
+}
+
+async function openClone(row) {
+  const lookups = await ensureLookups();
+  const initial = {
+    ...row,
+    cliente_nome: lookups.mapCli.get(row.cliente_id) || '',
+    categoria_nome: lookups.mapCat.get(row.categoria_id) || '',
+    forma_pagamento_nome: lookups.mapForma.get(row.forma_pagamento_id) || '',
+    valor_esperado: '',
+    valor_recebido: '',
+    data_emissao: formatDate(),
+    data_vencimento: '',
+    data_recebimento: '',
+  };
+  const { modal, close } = createModal({ title: 'Clonar Recebimento', content: recebimentoForm(initial, lookups), actions: [
+    { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
+    { label: 'Criar', className: 'btn btn-primary', onClick: async ({ close }) => {
+      const values = getRecFormValues(modal, lookups);
+      const nomeCli = modal.querySelector('#cliente_nome')?.value?.trim();
+      const nomeCat = modal.querySelector('#categoria_nome')?.value?.trim();
+      const nomeFor = modal.querySelector('#forma_nome')?.value?.trim();
+      if (nomeCli && !values.cliente_id) { showToast('Selecione um cliente válido da lista', 'error'); return; }
+      if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
+      if (nomeFor && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      const { error } = await db.insert('recebimentos', values);
+      if (error) { showToast(error.message||'Erro ao clonar', 'error'); }
+      else { showToast('Recebimento clonado', 'success'); close(); window.location.hash = '#/recebimentos'; }
+    } }
+  ]});
 }
 
 async function openEdit(row) {
@@ -367,16 +397,13 @@ export async function renderRecebimentos(app) {
         <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;">
           <input type="checkbox" id="fOnlyOverdue" /> Somente em atraso
         </label>
-        <button id="applyFilters" class="btn btn-outline">Filtrar</button>
+        <button id="applyFilters" class="btn btn-primary btn-prominent">🔎 Filtrar</button>
         <select id="sortField" style="margin-left:8px;">
           <option value="data_vencimento" selected>Ordenar por Data Venc.</option>
           <option value="data_recebimento">Ordenar por Data Rec.</option>
           <option value="descricao">Ordenar por Descrição</option>
           <option value="valor_esperado">Ordenar por Valor Esperado</option>
           <option value="valor_recebido">Ordenar por Valor Recebido</option>
-          <option value="cliente_nome">Ordenar por Cliente</option>
-          <option value="categoria_nome">Ordenar por Categoria</option>
-          <option value="forma_pagamento_nome">Ordenar por Forma</option>
         </select>
         <select id="sortDir" style="margin-left:8px;">
           <option value="asc" selected>Ascendente</option>
@@ -384,8 +411,12 @@ export async function renderRecebimentos(app) {
         </select>
       </div>
       <div>
-        <button id="newRec" class="btn btn-primary">Novo</button>
-        <button id="relatorio" class="btn btn-outline">Relatório de receitas</button>
+        <div id="totalsRec" class="totals-box totals-rec">
+          <div class="t-label">Recebido / A Receber</div>
+          <div class="t-values">R$ 0,00 / R$ 0,00</div>
+        </div>
+        <button id="newRec" class="btn btn-primary">Novo Recebimento</button>
+        <button id="relatorio" class="btn btn-outline">Exportar CSV</button>
       </div>
     </div>
     <div class="card" id="listCard"></div>
@@ -432,17 +463,14 @@ export async function renderRecebimentos(app) {
     if (serverMode) {
       const from = (page - 1) * perPage;
       const to = from + perPage - 1;
-      const opts = { select: 'id, cliente_id, categoria_id, forma_pagamento_id, descricao, valor_esperado, valor_recebido, data_emissao, data_vencimento, data_recebimento, status, tipo_recebimento, parcela_atual, total_parcelas, observacoes' };
+      const opts = { select: 'id, cliente_id, categoria_id, forma_pagamento_id, descricao, valor_esperado, valor_recebido, data_emissao, data_vencimento, data_recebimento, dia_recebimento, status, tipo_recebimento, parcela_atual, total_parcelas, observacoes' };
       opts.eq = {};
       if (filters.status) opts.eq.status = filters.status;
       if (filters.tipo_recebimento) opts.eq.tipo_recebimento = filters.tipo_recebimento;
       if (filters.cliente_id) opts.eq.cliente_id = filters.cliente_id;
       if (filters.de) opts.gte = { ...(opts.gte||{}), data_vencimento: filters.de };
       if (filters.ate) opts.lte = { ...(opts.lte||{}), data_vencimento: filters.ate };
-      const serverSortable = new Set(['data_vencimento','data_recebimento','descricao','valor_esperado','valor_recebido','status','tipo_recebimento','parcela_atual','total_parcelas','created_at']);
-      const orderColumn = serverSortable.has(sortField) ? sortField : 'data_vencimento';
-      const ascending = (sortDir !== 'desc');
-      opts.orderBy = { column: orderColumn, ascending };
+      opts.orderBy = { column: 'data_vencimento', ascending: true };
       opts.count = 'exact';
       opts.from = from; opts.to = to;
       const { data, error, count } = await db.select('recebimentos', opts);
@@ -559,6 +587,33 @@ export async function renderRecebimentos(app) {
     
     // atualiza conjunto para exportação (resultado visível)
     lastExportRows = sorted;
+
+    // totais gerais (todas as linhas que atendem aos filtros/pesquisas)
+    let totalRecebido = 0, totalAReceber = 0;
+    if (serverMode) {
+      // Busca todas as linhas que atendem aos filtros base (sem paginação) e aplica "Somente em atraso" no cliente
+      const tOpts = { select: 'status, valor_esperado, valor_recebido' };
+      tOpts.eq = {};
+      if (filters.status) tOpts.eq.status = filters.status;
+      if (filters.tipo_recebimento) tOpts.eq.tipo_recebimento = filters.tipo_recebimento;
+      if (filters.cliente_id) tOpts.eq.cliente_id = filters.cliente_id;
+      if (filters.de) tOpts.gte = { ...(tOpts.gte||{}), data_vencimento: filters.de };
+      if (filters.ate) tOpts.lte = { ...(tOpts.lte||{}), data_vencimento: filters.ate };
+      const { data: allForTotals } = await db.select('recebimentos', tOpts);
+      const applied = (filters.onlyOverdue ? (allForTotals||[]).filter(r => isOverdue(r)) : (allForTotals||[]));
+      totalRecebido = applied.reduce((acc, r) => acc + (r.status === 'recebido' ? Number(r.valor_recebido || 0) : 0), 0);
+      totalAReceber = applied.reduce((acc, r) => acc + (r.status === 'pendente' ? Number(r.valor_esperado || 0) : 0), 0);
+    } else {
+      // Quando há filtros por nome, "filtered" já representa todas as linhas após pesquisa e atraso
+      totalRecebido = filtered.reduce((acc, r) => acc + (r.status === 'recebido' ? Number(r.valor_recebido || 0) : 0), 0);
+      totalAReceber = filtered.reduce((acc, r) => acc + (r.status === 'pendente' ? Number(r.valor_esperado || 0) : 0), 0);
+    }
+    const grandTotal = totalRecebido + totalAReceber;
+    const totalsEl = document.getElementById('totalsRec');
+    if (totalsEl) {
+      const valuesEl = totalsEl.querySelector('.t-values');
+      if (valuesEl) valuesEl.textContent = `${formatCurrency(totalRecebido)} / ${formatCurrency(totalAReceber)}`;
+    }
   
     if (!serverMode) {
       totalPages = Math.max(1, Math.ceil(sorted.length / perPage));
@@ -594,8 +649,9 @@ export async function renderRecebimentos(app) {
       page: serverMode ? 1 : page,
       perPage,
       actions: [
-        { label: 'Editar', className: 'btn btn-outline', onClick: r => openEdit(r) },
-        { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const ok = confirm(`Confirma a exclusão de "${r.descricao}"? Esta ação não pode ser desfeita.`); if (!ok) return; const { error } = await db.remove('recebimentos', r.id); if (error) showToast(error.message||'Erro ao excluir', 'error'); else { showToast('Recebimento excluído', 'success'); window.location.hash = '#/recebimentos'; } } },
+        { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r) },
+        { label: 'Clonar', className: 'btn btn-outline', onClick: r => openClone(r) },
+        { label: '🗑️', className: 'btn btn-danger', onClick: async r => { const ok = confirm(`Confirma a exclusão de \"${r.descricao}\"? Esta ação não pode ser desfeita.`); if (!ok) return; const { error } = await db.remove('recebimentos', r.id); if (error) showToast(error.message||'Erro ao excluir', 'error'); else { showToast('Recebimento excluído', 'success'); window.location.hash = '#/recebimentos'; } } },
         { label: 'Recebido', className: 'btn btn-success', onClick: r => openRecebido(r) },
       ],
     });
