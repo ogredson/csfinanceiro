@@ -1,5 +1,5 @@
 import { db } from '../supabaseClient.js';
-import { showToast, formatCurrency, parseCurrency, formatDate, setLoading, debounce, exportToCSV } from '../utils.js';
+import { showToast, formatCurrency, parseCurrency, formatDate, setLoading, debounce, exportToCSV, sanitizeText } from '../utils.js';
 import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
@@ -566,7 +566,14 @@ export async function renderRecebimentos(app) {
   
     renderTable(cont, {
       columns: [
-        { key: 'descricao', label: 'Descrição' },
+        { key: 'descricao', label: 'Descrição', render: (v, r) => {
+          const desc = (v ?? '').toString();
+          const hint = (r.observacoes ?? '').toString();
+          if (hint) {
+            return `<span class="hint-hover" data-hint="${sanitizeText(hint)}">${sanitizeText(desc)} <span class="hint-icon" aria-hidden="true" title="Observação disponível">ℹ️</span></span>`;
+          }
+          return sanitizeText(desc);
+        } },
         { key: 'cliente_nome', label: 'Cliente' },
         { key: 'categoria_nome', label: 'Categoria' },
         { key: 'forma_pagamento_nome', label: 'Forma Rec.' },
