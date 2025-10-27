@@ -1,4 +1,4 @@
-import { db } from '../supabaseClient.js';
+import { db, login } from '../supabaseClient.js';
 import { showToast } from '../utils.js';
 import { navigate } from '../router.js';
 
@@ -8,8 +8,8 @@ export async function renderAuth(app) {
       <h3>Acessar</h3>
       <form id="loginForm" class="form">
         <div class="field">
-          <label>Nome de usuário</label>
-          <input type="text" id="nome" placeholder="seu_nome" required />
+          <label>E-mail</label>
+          <input type="email" id="email" placeholder="seu@email.com" required />
         </div>
         <div class="field">
           <label>Senha</label>
@@ -19,20 +19,20 @@ export async function renderAuth(app) {
           <button type="submit" class="btn btn-primary">Entrar</button>
         </div>
       </form>
-      <p class="muted" style="margin-top:8px;">Login básico usando a tabela de usuários.</p>
+      <p class="muted" style="margin-top:8px;">Login via Supabase Auth.</p>
     </div>
   `;
   const form = document.getElementById('loginForm');
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const nome = document.getElementById('nome').value.trim();
+    const email = document.getElementById('email').value.trim();
     const senha = document.getElementById('senha').value.trim();
-    const { data, error } = await db.select('usuarios', { eq: { nome, senha }, select: 'id, nome' });
-    if (error) { showToast(error.message || 'Erro ao validar usuário', 'error'); return; }
-    const user = (data || [])[0];
+    const { data, error } = await login(email, senha);
+    if (error) { showToast(error.message || 'Erro ao validar credenciais', 'error'); return; }
+    const user = data?.user;
     if (!user) { showToast('Usuário ou senha inválidos', 'error'); return; }
-    localStorage.setItem('CSF_USER', JSON.stringify(user));
-    window.__USER__ = user;
+    localStorage.setItem('CSF_USER', JSON.stringify({ id: user.id, email: user.email }));
+    window.__USER__ = { id: user.id, email: user.email };
     showToast('Login efetuado', 'success');
     window.location.hash = '#/dashboard';
     await navigate('/dashboard');

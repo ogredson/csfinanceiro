@@ -1,4 +1,4 @@
-import { initSupabase, subscribeRealtime } from './supabaseClient.js';
+import { initSupabase, subscribeRealtime, logout as supaLogout } from './supabaseClient.js';
 import { initRouter, navigate, getRouteFromHash } from './router.js';
 import { showToast } from './utils.js';
 
@@ -6,11 +6,10 @@ function getStoredUser() {
   try { return JSON.parse(localStorage.getItem('CSF_USER') || 'null'); } catch { return null; }
 }
 
-async function ensureAuth() {
+function ensureAuth() {
   const user = getStoredUser();
   window.__USER__ = user;
-  if (!user) { window.location.hash = '#/login'; return true; }
-  return true;
+  return !!user;
 }
 
 function getTheme() {
@@ -33,6 +32,8 @@ function setupLayoutEvents() {
   const sidebar = document.getElementById('sidebar');
   toggle?.addEventListener('click', () => sidebar.classList.toggle('open'));
   document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+    // Sign out from Supabase session
+    await supaLogout();
     localStorage.removeItem('CSF_USER');
     window.__USER__ = null;
     showToast('Sessão encerrada', 'success');
@@ -70,11 +71,13 @@ function setupRealtime() {
 async function bootstrap() {
   setupLayoutEvents();
   initRouter();
-  const ok = await ensureAuth();
-  if (ok) {
-    setupRealtime();
-    await navigate(getRouteFromHash());
+  const isAuthed = ensureAuth();
+  if (!isAuthed) {
+    await navigate('/login');
+    return;
   }
+  setupRealtime();
+  await navigate(getRouteFromHash());
 }
 
 bootstrap();

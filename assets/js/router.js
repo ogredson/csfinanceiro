@@ -34,11 +34,33 @@ function updateActiveLink(path) {
 }
 
 export async function navigate(path) {
+  // Simple auth guard: block access to routes when not authenticated
+  const getUser = () => {
+    try { return JSON.parse(localStorage.getItem('CSF_USER') || 'null'); } catch { return null; }
+  };
+  const user = window.__USER__ || getUser();
+  const isLoginRoute = path === '/login';
+  if (!isLoginRoute && !user) {
+    path = '/login';
+    window.location.hash = '#/login';
+  }
+
   const app = document.getElementById('app');
   const renderer = routes[path] || routes['/dashboard'];
   app.innerHTML = '';
   await renderer(app);
   updateActiveLink(path);
+
+  // Hide navigation elements on login route to prevent interaction
+  const sidebar = document.getElementById('sidebar');
+  const headerActions = document.querySelector('.header-actions');
+  const toggleBtn = document.getElementById('toggleSidebar');
+  const brand = document.querySelector('.brand');
+  const onLogin = path === '/login';
+  if (sidebar) sidebar.style.display = onLogin ? 'none' : 'block';
+  if (headerActions) headerActions.style.display = onLogin ? 'none' : 'flex';
+  if (toggleBtn) toggleBtn.style.display = onLogin ? 'none' : 'block';
+  if (brand) brand.style.pointerEvents = onLogin ? 'none' : 'auto';
 }
 
 export function initRouter() {
