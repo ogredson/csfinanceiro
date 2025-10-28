@@ -524,6 +524,7 @@ export async function renderRelatorios(app) {
           </select>
         </label>
         <button id="btnFluxo" class="btn btn-outline">Gerar Fluxo de Caixa</button>
+        <button id="btnFluxoCat" class="btn btn-outline">Gerar fluxo de caixa por categorias</button>
       </div>
     </div>
     <div class="grid cols-2">
@@ -616,6 +617,15 @@ export async function renderRelatorios(app) {
     const tipoRelatorio = document.getElementById('tipoRelatorio').value;
     window._campoDataRelatorios = document.getElementById('campoData').value;
     try { await gerarFluxoCaixaPDF(dtInicioVal, dtFimVal, saldoInicial, tipoRelatorio); } catch (e) { console.error(e); showToast('Falha ao gerar fluxo de caixa em PDF', 'error'); }
+  });
+
+  document.getElementById('btnFluxoCat').addEventListener('click', async () => {
+    const dtInicioVal = document.getElementById('dtInicio').value;
+    const dtFimVal = document.getElementById('dtFim').value;
+    const saldoInicial = Number(document.getElementById('saldoInicial').value || 0);
+    const tipoRelatorio = document.getElementById('tipoRelatorio').value;
+    window._campoDataRelatorios = document.getElementById('campoData').value;
+    try { await gerarFluxoCaixaPorCategoriasPDF(dtInicioVal, dtFimVal, saldoInicial, tipoRelatorio); } catch (e) { console.error(e); showToast('Falha ao gerar fluxo por categorias em PDF', 'error'); }
   });
 }
 
@@ -1056,3 +1066,405 @@ async function gerarFluxoCaixaPDF(startStr, endStr, saldoInicial, tipoRelatorio 
     doc.save(fname);
     showToast('Fluxo de caixa gerado em PDF', 'success');
   }
+
+// Fluxo de Caixa por Categoria – Sintético/Analítico
+async function gerarFluxoCaixaPorCategoriasPDF(startStr, endStr, saldoInicial, tipoRelatorio = 'sintetico') {
+  const { jsPDF } = window.jspdf || {};
+  if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  doc.setFont('helvetica','normal');
+  const blue = [0, 64, 192];
+  const red = [200, 0, 0];
+  const margin = 24;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const campoSel = window._campoDataRelatorios || 'data_vencimento';
+  const recDateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
+  const pagDateField = (campoSel === 'data_pagamento') ? 'data_pagamento' : 'data_vencimento';
+  // Expandimos seleção para suportar analítico (descrição e contraparte)
+  const { data: recebimentos } = await db.select('recebimentos', { select: 'categoria_id, descricao, valor_esperado, valor_recebido, status, data_vencimento, data_recebimento, cliente_id' });
+  const { data: pagamentos } = await db.select('pagamentos', { select: 'categoria_id, descricao, valor_esperado, valor_pago, status, data_vencimento, data_pagamento, fornecedor_id' });
+  const { data: categorias } = await db.select('categorias', { select: 'id, nome, tipo' });
+  const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
+  const { data: fornecedores } = await db.select('fornecedores', { select: 'id, nome' });
+  const mapCli = new Map((clientes||[]).map(c => [c.id, c.nome]));
+  const mapForn = new Map((fornecedores||[]).map(f => [f.id, f.nome]));
+  const nomeCategoria = (id) => (categorias||[]).find(c => c.id === id)?.nome || '—';
+  const tipoCategoria = (id) => (categorias||[]).find(c => c.id === id)?.tipo || null;
+
+  const parseDate = (s) => { if (!s) return null; const [y,m,d] = s.split('-'); return new Date(Number(y), Number(m)-1, Number(d)); };
+  const inRange = (s) => { const dt = parseDate(s); if (!dt) return false; const a = parseDate(startStr); const b = parseDate(endStr); return dt >= a && dt <= b; };
+
+  // Se o tipo for analítico, gerar relatório detalhado e sair
+  if (tipoRelatorio === 'analitico') {
+    const fmtDMY = s => { if (!s) return '—'; const [y,m,d] = String(s).split('-'); return `${d}/${m}/${y}`; };
+    // Cabeçalho
+    doc.setTextColor(0,0,0); doc.setFontSize(16);
+    doc.text('FLUXO DE CAIXA POR CATEGORIA – ANALÍTICO', margin, margin + 6);
+    doc.setFontSize(10);
+    doc.text(`Periodo ${fmtDMY(startStr)} a ${fmtDMY(endStr)}`, margin, margin + 22);
+    const campoLabel = (campoSel === 'data_vencimento') ? 'Por Vencimento' : 'Por Pagamento';
+    doc.text(`Campo de data: ${campoLabel}`, margin, margin + 36);
+    // Saldo inicial à direita
+    doc.setFontSize(11); doc.setTextColor(0,0,0);
+    const saldoIniStr = `Saldo inicial  ${formatCurrency(saldoInicial)}`;
+    doc.text(saldoIniStr, pageWidth - margin - doc.getTextWidth(saldoIniStr), margin + 22);
+
+    // Layout em tabela sem bordas visíveis, fonte menor
+    const valueColWidth = 120; // coluna de valores fixa à direita
+    const col1X = margin;
+    const col2X = pageWidth - margin - valueColWidth; // início da coluna de valor
+    let y = margin + 50;
+    const rowHeight = 16; // altura consistente por linha
+    const tableWidth = pageWidth - margin * 2;
+    const contentWidth = tableWidth - valueColWidth;
+    // Larguras: Descricao, Fornecedor/Cliente, Data, Status (somam contentWidth)
+    const descW = Math.floor(contentWidth * 0.40); // ~40%
+    const partyW = Math.floor(contentWidth * 0.33); // ~33%
+    const dataW = Math.floor(contentWidth * 0.15); // ~15% (mais espaço)
+    const statusW = contentWidth - descW - partyW - dataW; // ~12% (leva o Status mais à direita)
+    const colX = [col1X, col1X + descW, col1X + descW + partyW, col1X + descW + partyW + dataW, col2X];
+    const pad = 6;
+    const truncateToWidth = (txt, maxW) => {
+      let t = String(txt || '—');
+      if (doc.getTextWidth(t) <= maxW) return t;
+      const ell = '…';
+      while (t.length > 1 && doc.getTextWidth(t + ell) > maxW) { t = t.slice(0, -1); }
+      return t + ell;
+    };
+    const drawSectionBand = (sectionColor) => {
+      // Faixa suave para cabeçalho de seção
+      const bandColor = (sectionColor === blue) ? [240,248,255] : [255,240,240];
+      doc.setFillColor(...bandColor);
+      doc.rect(col1X, y - 12, tableWidth, 20, 'F');
+      doc.setTextColor(...sectionColor); doc.setFontSize(11);
+      doc.setFont('helvetica','bold');
+      doc.text(sectionColor === blue ? 'Receitas' : 'Despesas', col1X + pad, y);
+      doc.setFont('helvetica','normal');
+      doc.setTextColor(0,0,0); doc.setFontSize(9);
+      y += 20;
+    };
+    const drawTableHeader = () => {
+      doc.setFont('helvetica','bold'); doc.setFontSize(10);
+      doc.text('Descricao', colX[0] + pad, y);
+      doc.text('Fornecedor / Cliente', colX[1] + pad, y);
+      doc.text('Data', colX[2] + pad, y);
+      doc.text('Status', colX[3] + pad, y);
+      doc.text('Valor', colX[4] + valueColWidth - pad, y, { align: 'right' });
+      doc.setFont('helvetica','normal');
+      y += 14;
+    };
+    const ensurePage = (sectionColor, currentCat) => {
+      if (y + rowHeight > pageHeight - margin) {
+        doc.addPage();
+        y = margin + 24;
+        drawSectionBand(sectionColor);
+        drawTableHeader();
+        if (currentCat) {
+          // Reimprime a faixa da categoria com subtotal à direita
+          doc.setFont('helvetica','bold'); doc.setFontSize(10);
+          doc.setFillColor(245,245,245);
+          doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
+          doc.text(currentCat.name, colX[0] + pad, y);
+          if (currentCat.subtotalStr) doc.text(currentCat.subtotalStr, colX[4] + valueColWidth - pad, y, { align: 'right' });
+          doc.setFont('helvetica','normal');
+          y += rowHeight;
+        }
+      }
+    };
+
+    // Agrupamento de receitas por categoria (tipo entrada)
+    const receitasPorCat = new Map();
+    (recebimentos||[]).forEach(r => {
+      const ds = r[recDateField];
+      if (!ds || !inRange(ds)) return;
+      const val = Number(recDateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
+      if (!(val > 0)) return;
+      const tipo = tipoCategoria(r.categoria_id);
+      if (tipo && String(tipo).toLowerCase() !== 'entrada') return;
+      const catName = nomeCategoria(r.categoria_id);
+      const arr = receitasPorCat.get(catName) || [];
+      arr.push({
+        descricao: r.descricao || '—',
+        contraparte: mapCli.get(r.cliente_id) || '—',
+        dataStr: fmtDMY(ds),
+        status: r.status || '—',
+        valor: val
+      });
+      receitasPorCat.set(catName, arr);
+    });
+
+    // Agrupamento de despesas por categoria (tipo saida)
+    const despesasPorCat = new Map();
+    (pagamentos||[]).forEach(p => {
+      const ds = p[pagDateField];
+      if (!ds || !inRange(ds)) return;
+      const val = Number(pagDateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0));
+      if (!(val > 0)) return;
+      const tipo = tipoCategoria(p.categoria_id);
+      if (tipo && String(tipo).toLowerCase() !== 'saida') return;
+      const catName = nomeCategoria(p.categoria_id);
+      const arr = despesasPorCat.get(catName) || [];
+      arr.push({
+        descricao: p.descricao || '—',
+        contraparte: mapForn.get(p.fornecedor_id) || '—',
+        dataStr: fmtDMY(ds),
+        status: p.status || '—',
+        valor: val
+      });
+      despesasPorCat.set(catName, arr);
+    });
+
+    const sumVals = arr => (arr||[]).reduce((a,b)=>a + (b.valor||0), 0);
+    const totalReceitas = Array.from(receitasPorCat.values()).reduce((a,b)=>a + sumVals(b), 0);
+    const totalDespesas = Array.from(despesasPorCat.values()).reduce((a,b)=>a + sumVals(b), 0);
+    const saldoFinal = Number(saldoInicial||0) + totalReceitas - totalDespesas;
+
+    // Seção Receitas
+    drawSectionBand(blue);
+    drawTableHeader();
+    const receitasCats = Array.from(receitasPorCat.entries())
+      .sort((a,b)=> sumVals(b[1]) - sumVals(a[1]));
+    receitasCats.forEach(([catName, items]) => {
+      const subtotal = sumVals(items);
+      const subtotalStr = formatCurrency(subtotal);
+      // Cabeçalho de categoria (faixa suave com subtotal à direita)
+      doc.setFont('helvetica','bold'); doc.setFontSize(10);
+      doc.setFillColor(245,245,245);
+      doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
+      doc.text(catName, colX[0] + pad, y);
+      doc.text(subtotalStr, colX[4] + valueColWidth - pad, y, { align: 'right' });
+      doc.setFont('helvetica','normal');
+      y += rowHeight;
+      ensurePage(blue, { name: catName, subtotalStr });
+      // Itens
+      items.sort((a,b)=> a.dataStr.localeCompare(b.dataStr));
+      const itemDescIndent = 12;
+      items.forEach((it, idx) => {
+        // zebra suave sem borda
+        if (idx % 2 === 1) { doc.setFillColor(245,245,245); doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F'); }
+        // textos com truncamento por coluna e fonte menor
+        const descTxt = truncateToWidth(it.descricao, descW - pad*2 - itemDescIndent);
+        const partyTxt = truncateToWidth(it.contraparte, partyW - pad*2);
+        const dateTxt = truncateToWidth(it.dataStr, dataW - pad*2);
+        const statusTxt = truncateToWidth(it.status, statusW - pad*2);
+        doc.text(descTxt, colX[0] + pad + itemDescIndent, y);
+        doc.text(partyTxt, colX[1] + pad, y);
+        doc.text(dateTxt, colX[2] + pad, y);
+        doc.text(statusTxt, colX[3] + pad, y);
+        doc.text(formatCurrency(it.valor), colX[4] + valueColWidth - pad, y, { align: 'right' });
+        y += rowHeight;
+        ensurePage(blue, { name: catName, subtotalStr });
+      });
+    });
+
+    // Total Receitas (faixa suave)
+    doc.setFont('helvetica','bold'); doc.setTextColor(...blue);
+    doc.setFillColor(240,248,255);
+    doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
+    doc.text('Total Receitas', colX[0] + pad, y);
+    doc.text(formatCurrency(totalReceitas), colX[4] + valueColWidth - pad, y, { align: 'right' });
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    y += rowHeight;
+
+    // Seção Despesas
+    drawSectionBand(red);
+    drawTableHeader();
+    const despesasCats = Array.from(despesasPorCat.entries())
+      .sort((a,b)=> sumVals(b[1]) - sumVals(a[1]));
+    despesasCats.forEach(([catName, items]) => {
+      const subtotal = sumVals(items);
+      const subtotalStr = formatCurrency(subtotal);
+      // Cabeçalho de categoria
+      doc.setFont('helvetica','bold'); doc.setFontSize(10);
+      doc.setFillColor(245,245,245);
+      doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
+      doc.text(catName, colX[0] + pad, y);
+      doc.text(subtotalStr, colX[4] + valueColWidth - pad, y, { align: 'right' });
+      doc.setFont('helvetica','normal');
+      y += rowHeight;
+      ensurePage(red, { name: catName, subtotalStr });
+      // Itens
+      items.sort((a,b)=> a.dataStr.localeCompare(b.dataStr));
+      const itemDescIndent2 = 12;
+      items.forEach((it, idx) => {
+        if (idx % 2 === 1) { doc.setFillColor(245,245,245); doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F'); }
+        const descTxt = truncateToWidth(it.descricao, descW - pad*2 - itemDescIndent2);
+        const partyTxt = truncateToWidth(it.contraparte, partyW - pad*2);
+        const dateTxt = truncateToWidth(it.dataStr, dataW - pad*2);
+        const statusTxt = truncateToWidth(it.status, statusW - pad*2);
+        doc.text(descTxt, colX[0] + pad + itemDescIndent2, y);
+        doc.text(partyTxt, colX[1] + pad, y);
+        doc.text(dateTxt, colX[2] + pad, y);
+        doc.text(statusTxt, colX[3] + pad, y);
+        doc.text(formatCurrency(it.valor), colX[4] + valueColWidth - pad, y, { align: 'right' });
+        y += rowHeight;
+        ensurePage(red, { name: catName, subtotalStr });
+      });
+    });
+
+    // Total Despesas (faixa suave)
+    doc.setFont('helvetica','bold'); doc.setTextColor(...red);
+    doc.setFillColor(255,240,240);
+    doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
+    doc.text('Total Despesas', colX[0] + pad, y);
+    doc.text(formatCurrency(totalDespesas), colX[4] + valueColWidth - pad, y, { align: 'right' });
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    y += rowHeight;
+
+    // Saldo final (faixa, sem borda) com cor condicional
+    const saldoColor = (saldoFinal >= 0) ? blue : red;
+    doc.setTextColor(...saldoColor); doc.setFontSize(12);
+    doc.setFont('helvetica','bold');
+    const bandColor = (saldoFinal >= 0) ? [240,248,255] : [255,240,240];
+    doc.setFillColor(...bandColor);
+    doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
+    doc.text('Saldo Final', colX[0] + pad, y);
+    doc.text(formatCurrency(saldoFinal), colX[4] + valueColWidth - pad, y, { align: 'right' });
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+
+    const fname = `fluxo-categorias-analitico_${startStr}_a_${endStr}.pdf`;
+    doc.save(fname);
+    showToast('Fluxo por categorias (analítico) gerado em PDF', 'success');
+    return;
+  }
+
+  const receitasMap = new Map();
+  (recebimentos||[]).forEach(r => {
+    const ds = r[recDateField];
+    if (!ds || !inRange(ds)) return;
+    const val = Number(recDateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
+    if (val <= 0) return;
+    const name = nomeCategoria(r.categoria_id);
+    const tipo = tipoCategoria(r.categoria_id);
+    // No schema, categorias.tipo é 'entrada' para receitas
+    if (tipo && String(tipo).toLowerCase() !== 'entrada') return;
+    receitasMap.set(name, (receitasMap.get(name)||0) + val);
+  });
+
+  const despesasMap = new Map();
+  (pagamentos||[]).forEach(p => {
+    const ds = p[pagDateField];
+    if (!ds || !inRange(ds)) return;
+    const val = Number(pagDateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0));
+    if (val <= 0) return;
+    const name = nomeCategoria(p.categoria_id);
+    const tipo = tipoCategoria(p.categoria_id);
+    // No schema, categorias.tipo é 'saida' para despesas
+    if (tipo && String(tipo).toLowerCase() !== 'saida') return;
+    despesasMap.set(name, (despesasMap.get(name)||0) + val);
+  });
+
+  const totalReceitas = Array.from(receitasMap.values()).reduce((a,b)=>a+b,0);
+  const totalDespesas = Array.from(despesasMap.values()).reduce((a,b)=>a+b,0);
+  const saldoFinal = Number(saldoInicial||0) + totalReceitas - totalDespesas;
+
+  const fmtDMY = s => { if (!s) return '—'; const [y,m,d] = String(s).split('-'); return `${d}/${m}/${y}`; };
+  doc.setTextColor(0,0,0); doc.setFontSize(16);
+  doc.text('FLUXO DE CAIXA POR CATEGORIA – SINTETICO', margin, margin + 6);
+  doc.setFontSize(10);
+  doc.text(`Periodo ${fmtDMY(startStr)} a ${fmtDMY(endStr)}`, margin, margin + 22);
+  const campoLabel = (campoSel === 'data_vencimento') ? 'Por Vencimento' : 'Por Pagamento';
+  doc.text(`Campo de data: ${campoLabel}`, margin, margin + 36);
+
+  // Saldo inicial à direita
+  doc.setFontSize(11); doc.setTextColor(0,0,0);
+  const saldoIniStr = `Saldo inicial  ${formatCurrency(saldoInicial)}`;
+  doc.text(saldoIniStr, pageWidth - margin - doc.getTextWidth(saldoIniStr), margin + 22);
+
+  // Tabela
+  const valueColWidth = 160;
+  const col1X = margin;
+  const col2X = pageWidth - margin - valueColWidth;
+  const nameIndentX = col1X + 16; // identação para categorias
+  let y = margin + 48;
+  const rowHeight = 14;
+  const zebraWidth = pageWidth - margin * 2;
+  const ensurePage = (section) => { 
+    if (y + rowHeight > pageHeight - margin) { 
+      doc.addPage(); 
+      y = margin + 24; 
+      // Reimprime título da seção
+      if (section === 'receitas') { doc.setTextColor(...blue); doc.setFontSize(12); doc.text('Receitas', col1X, y); }
+      else if (section === 'despesas') { doc.setTextColor(...red); doc.setFontSize(12); doc.text('Despesas', col1X, y); }
+      y += 14; doc.setTextColor(0,0,0); doc.setFontSize(11);
+    }
+  };
+  const leaderPad = 6;
+  const drawLeader = (startX, endX, y) => {
+    if (endX - startX <= 4) return;
+    if (typeof doc.setLineDash === 'function') {
+      doc.setDrawColor(180,180,180);
+      doc.setLineDash([2,2], 0);
+      doc.line(startX, y - 3, endX, y - 3);
+      doc.setLineDash([]);
+    } else {
+      // Fallback: pequenos pontos
+      doc.setDrawColor(180,180,180);
+      const step = 4; for (let x = startX; x < endX; x += step) { if (typeof doc.circle === 'function') doc.circle(x, y - 3, 0.5, 'F'); }
+    }
+  };
+
+  // Receitas
+  doc.setTextColor(...blue); doc.setFontSize(12);
+  doc.text('Receitas', col1X, y);
+  y += 14; doc.setTextColor(0,0,0); doc.setFontSize(11);
+  const receitasArr = Array.from(receitasMap.entries()).sort((a,b)=>b[1]-a[1]);
+  receitasArr.forEach(([name, val], idx) => {
+    // zebra line
+    if (idx % 2 === 1) { doc.setFillColor(245,245,245); doc.rect(margin, y - (rowHeight - 2), zebraWidth, rowHeight, 'F'); }
+    // texto
+    doc.text(name, nameIndentX, y);
+    const vStr = formatCurrency(val);
+    // leader pontilhado entre fim do nome e coluna de valor
+    const nameW = doc.getTextWidth(name);
+    const startLeaderX = nameIndentX + nameW + leaderPad;
+    const endLeaderX = col2X - leaderPad;
+    drawLeader(startLeaderX, endLeaderX, y);
+    // valor alinhado à direita
+    doc.text(vStr, col2X + valueColWidth, y, { align: 'right' });
+    y += rowHeight;
+    ensurePage('receitas');
+  });
+  // Total Receitas (negrito com rótulo)
+  doc.setFont('helvetica','bold'); doc.setTextColor(...blue);
+  doc.text('Total Receitas', col1X, y);
+  doc.text(formatCurrency(totalReceitas), col2X + valueColWidth, y, { align: 'right' });
+  y += 18; doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+
+  // Despesas
+  doc.setTextColor(...red); doc.setFontSize(12);
+  doc.text('Despesas', col1X, y);
+  y += 14; doc.setTextColor(0,0,0); doc.setFontSize(11);
+  const despesasArr = Array.from(despesasMap.entries()).sort((a,b)=>b[1]-a[1]);
+  despesasArr.forEach(([name, val], idx) => {
+    if (idx % 2 === 1) { doc.setFillColor(245,245,245); doc.rect(margin, y - (rowHeight - 2), zebraWidth, rowHeight, 'F'); }
+    doc.text(name, nameIndentX, y);
+    const vStr = formatCurrency(val);
+    const nameW = doc.getTextWidth(name);
+    const startLeaderX = nameIndentX + nameW + leaderPad;
+    const endLeaderX = col2X - leaderPad;
+    drawLeader(startLeaderX, endLeaderX, y);
+    doc.text(vStr, col2X + valueColWidth, y, { align: 'right' });
+    y += rowHeight;
+    ensurePage('despesas');
+  });
+  // Total Despesas (negrito com rótulo)
+  doc.setFont('helvetica','bold'); doc.setTextColor(...red);
+  doc.text('Total Despesas', col1X, y);
+  doc.text(formatCurrency(totalDespesas), col2X + valueColWidth, y, { align: 'right' });
+  y += 22; doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+
+  // Saldo final
+  const saldoColor = (saldoFinal >= 0) ? blue : red;
+  doc.setTextColor(...saldoColor); doc.setFontSize(12);
+  doc.setFont('helvetica','bold');
+  doc.text('Saldo Final', col1X, y);
+  doc.text(formatCurrency(saldoFinal), col2X + valueColWidth, y, { align: 'right' });
+  doc.setFont('helvetica','normal');
+
+  const fname = `fluxo-categorias-sintetico_${startStr}_a_${endStr}.pdf`;
+  doc.save(fname);
+  showToast('Fluxo por categorias (sintético) gerado em PDF', 'success');
+}
