@@ -1,5 +1,5 @@
 import { db } from '../supabaseClient.js';
-import { showToast, formatCurrency, parseCurrency, formatDate, setLoading, debounce, exportToCSV, sanitizeText } from '../utils.js';
+import { showToast, formatCurrency, parseCurrency, formatDate, formatDateBR, setLoading, debounce, exportToCSV, sanitizeText } from '../utils.js';
 import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
@@ -447,8 +447,8 @@ export async function renderPagamentos(app) {
         { key: 'forma_pagamento_nome', label: 'Forma Pag.' },
         { key: 'valor_esperado', label: 'Esperado', render: v => `<strong>${formatCurrency(v)}</strong>` },
         { key: 'valor_pago', label: 'Pago', render: v => `${formatCurrency(v)}` },
-        { key: 'data_pagamento', label: 'Pag.' },
-        { key: 'data_vencimento', label: 'Venc.' },
+        { key: 'data_pagamento', label: 'Pag.', render: v => formatDateBR(v) },
+        { key: 'data_vencimento', label: 'Venc.', render: v => formatDateBR(v) },
         { key: 'dias_vencimento', label: 'Dias', render: (_v, r) => diasMarkup(r) },
         { key: 'status', label: 'Status', render: v => `<span class="status-pill status-${v}">${v}</span>` },
         { key: 'tipo_pagamento', label: 'Tipo' },

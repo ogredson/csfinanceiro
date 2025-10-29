@@ -52,6 +52,13 @@ export function formatDate(date) {
   return `${y}-${m}-${day}`;
 }
 
+export function formatDateBR(dateStr) {
+  if (!dateStr) return '—';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  return parts[2] + '/' + parts[1] + '/' + parts[0];
+}
+
 export function debounce(fn, delay = 300) {
   let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
 }

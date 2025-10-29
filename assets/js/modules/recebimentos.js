@@ -1,5 +1,5 @@
 import { db } from '../supabaseClient.js';
-import { showToast, formatCurrency, parseCurrency, formatDate, setLoading, debounce, exportToCSV, sanitizeText } from '../utils.js';
+import { showToast, formatCurrency, parseCurrency, formatDate, formatDateBR, setLoading, debounce, exportToCSV, sanitizeText } from '../utils.js';
 import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
@@ -395,10 +395,9 @@ export async function renderRecebimentos(app) {
         <input type="date" id="fAte" />
         <input id="fCliNome" list="fCliOptions" placeholder="Cliente (nome)" />
         <datalist id="fCliOptions">${(lookups.clientes||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
+        <input id="fDescricao" placeholder="Descrição (texto)" />
         <input id="fCategoriaNome" list="fCatOptions" placeholder="Categoria (nome)" />
         <datalist id="fCatOptions">${(lookups.categorias||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
-        <input id="fFormaNome" list="fFormaOptions" placeholder="Forma de recebimento (nome)" />
-        <datalist id="fFormaOptions">${(lookups.formas||[]).map(f => `<option value="${f.nome}"></option>`).join('')}</datalist>
         <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;">
           <input type="checkbox" id="fOnlyOverdue" /> Somente em atraso
         </label>
@@ -445,7 +444,7 @@ export async function renderRecebimentos(app) {
   let currentRows = [];
   let qCli = '';
   let qCat = '';
-  let qForma = '';
+  let qDesc = '';
   let fRegime = '';
   let fTipoEmp = '';
   const perPage = 20;
@@ -481,7 +480,7 @@ export async function renderRecebimentos(app) {
     const myVersion = ++loadVersion;
     setLoading(cont, true);
     // remove limpeza imediata para evitar race conditions
-    const serverMode = !qCli && !qCat && !qForma && !fRegime && !fTipoEmp;
+    const serverMode = !qCli && !qCat && !qDesc && !fRegime && !fTipoEmp;
     let rows = [];
     let totalPages = 1;
   
@@ -591,7 +590,7 @@ export async function renderRecebimentos(app) {
       const cls = `days-text${highlight ? ' days-highlight' : ''}`;
       return `<span class="${cls}" style="${style}">${text}</span>`;
     }
-    const baseFiltered = serverMode ? enriched : enriched.filter(r => ilike(r.cliente_nome, qCli) && ilike(r.categoria_nome, qCat) && ilike(r.forma_pagamento_nome, qForma));
+    const baseFiltered = serverMode ? enriched : enriched.filter(r => ilike(r.cliente_nome, qCli) && ilike(r.descricao, qDesc) && ilike(r.categoria_nome, qCat));
     const regimeFiltered = baseFiltered.filter(r => !fRegime || (r.cliente_regime_tributario || '') === fRegime);
     const tipoEmpFiltered = regimeFiltered.filter(r => !fTipoEmp || (r.cliente_tipo_empresa || '') === fTipoEmp);
     const nameFiltered = tipoEmpFiltered;
@@ -677,8 +676,8 @@ export async function renderRecebimentos(app) {
         { key: 'forma_pagamento_nome', label: 'Forma Rec.' },
         { key: 'valor_esperado', label: 'Esperado', render: v => `<strong>${formatCurrency(v)}</strong>` },
         { key: 'valor_recebido', label: 'Recebido', render: v => `${formatCurrency(v)}` },
-        { key: 'data_recebimento', label: 'Rec.' },
-        { key: 'data_vencimento', label: 'Venc.' },
+        { key: 'data_recebimento', label: 'Rec.', render: v => formatDateBR(v) },
+        { key: 'data_vencimento', label: 'Venc.', render: v => formatDateBR(v) },
         { key: 'dias_vencimento', label: 'Dias', render: (_v, r) => diasMarkup(r) },
         { key: 'status', label: 'Status', render: v => `<span class="status-pill status-${v}">${v}</span>` },
         { key: 'tipo_recebimento', label: 'Tipo' },
@@ -727,8 +726,8 @@ export async function renderRecebimentos(app) {
     load();
   });
   document.getElementById('fCliNome').addEventListener('input', (e) => { qCli = e.target.value.trim(); page = 1; debouncedLoad(); });
+  document.getElementById('fDescricao').addEventListener('input', (e) => { qDesc = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('fCategoriaNome').addEventListener('input', (e) => { qCat = e.target.value.trim(); page = 1; debouncedLoad(); });
-  document.getElementById('fFormaNome').addEventListener('input', (e) => { qForma = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; page = 1; load(); });
   document.getElementById('sortDir').addEventListener('change', (e) => { sortDir = e.target.value; page = 1; load(); });
   document.getElementById('fCliRegime').addEventListener('change', (e) => { fRegime = (e.target.value||'').trim(); page = 1; load(); });
