@@ -22,7 +22,7 @@ let LOOKUPS = null;
 async function ensureLookups() {
   if (LOOKUPS) return LOOKUPS;
   const [forRes, catRes, formaRes] = await Promise.all([
-    db.select('fornecedores', { select: 'id, nome', orderBy: { column: 'nome', ascending: true } }),
+    db.select('fornecedores', { select: 'id, nome, observacao', orderBy: { column: 'nome', ascending: true } }),
     db.select('categorias', { select: 'id, nome', orderBy: { column: 'nome', ascending: true } }),
     db.select('formas_pagamento', { select: 'id, nome', orderBy: { column: 'nome', ascending: true } }),
   ]);
@@ -30,9 +30,10 @@ async function ensureLookups() {
   const categorias = catRes.data || [];
   const formas = formaRes.data || [];
   const mapFor = new Map(fornecedores.map(f => [f.id, f.nome]));
+  const mapForObs = new Map(fornecedores.map(f => [f.id, (f.observacao || '')]));
   const mapCat = new Map(categorias.map(c => [c.id, c.nome]));
   const mapForma = new Map(formas.map(f => [f.id, f.nome]));
-  LOOKUPS = { fornecedores, categorias, formas, mapFor, mapCat, mapForma };
+  LOOKUPS = { fornecedores, categorias, formas, mapFor, mapForObs, mapCat, mapForma };
   return LOOKUPS;
 }
 
@@ -238,14 +239,16 @@ export async function renderPagamentos(app) {
     const idsCat = Array.from(new Set(rows.map(r => r.categoria_id).filter(Boolean)));
     const idsForma = Array.from(new Set(rows.map(r => r.forma_pagamento_id).filter(Boolean)));
     const [forRes, catRes, formaRes] = await Promise.all([
-      idsFor.length ? db.select('fornecedores', { select: 'id, nome', in: { id: idsFor } }) : Promise.resolve({ data: [] }),
+      idsFor.length ? db.select('fornecedores', { select: 'id, nome, observacao', in: { id: idsFor } }) : Promise.resolve({ data: [] }),
       idsCat.length ? db.select('categorias', { select: 'id, nome', in: { id: idsCat } }) : Promise.resolve({ data: [] }),
       idsForma.length ? db.select('formas_pagamento', { select: 'id, nome', in: { id: idsForma } }) : Promise.resolve({ data: [] }),
     ]);
-    const mapFor = new Map((forRes.data || []).map(f => [f.id, f.nome]));
+    const forRows = forRes.data || [];
+    const mapFor = new Map(forRows.map(f => [f.id, f.nome]));
+    const mapForObs = new Map(forRows.map(f => [f.id, (f.observacao || '')]));
     const mapCat = new Map((catRes.data || []).map(c => [c.id, c.nome]));
     const mapForma = new Map((formaRes.data || []).map(f => [f.id, f.nome]));
-    return { mapFor, mapCat, mapForma };
+    return { mapFor, mapForObs, mapCat, mapForma };
   }
 
   async function load() {
@@ -291,13 +294,14 @@ export async function renderPagamentos(app) {
     if (myVersion !== loadVersion) return;
 
     currentRows = rows;
-    const { mapFor, mapCat, mapForma } = await buildMaps(rows);
+    const { mapFor, mapForObs, mapCat, mapForma } = await buildMaps(rows);
 
     if (myVersion !== loadVersion) return;
 
     const enriched = rows.map(r => ({
       ...r,
       fornecedor_nome: mapFor.get(r.fornecedor_id) || '—',
+      fornecedor_observacao: mapForObs.get(r.fornecedor_id) || '',
       categoria_nome: mapCat.get(r.categoria_id) || '—',
       forma_pagamento_nome: mapForma.get(r.forma_pagamento_id) || '—',
     }));
@@ -431,7 +435,14 @@ export async function renderPagamentos(app) {
           }
           return sanitizeText(desc);
         } },
-        { key: 'fornecedor_nome', label: 'Fornecedor' },
+        { key: 'fornecedor_nome', label: 'Fornecedor', render: (v, r) => {
+          const nome = (v ?? '').toString();
+          const hint = (r.fornecedor_observacao ?? LOOKUPS?.mapForObs?.get(r.fornecedor_id) ?? '').toString();
+          if (hint) {
+            return `<span class="hint-hover" data-hint="${sanitizeText(hint)}">${sanitizeText(nome)} <span class="hint-icon" aria-hidden="true" title="Observação do fornecedor">ℹ️</span></span>`;
+          }
+          return sanitizeText(nome);
+        } },
         { key: 'categoria_nome', label: 'Categoria' },
         { key: 'forma_pagamento_nome', label: 'Forma Pag.' },
         { key: 'valor_esperado', label: 'Esperado', render: v => `<strong>${formatCurrency(v)}</strong>` },

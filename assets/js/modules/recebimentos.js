@@ -22,7 +22,7 @@ let LOOKUPS = null;
 async function ensureLookups() {
   if (LOOKUPS) return LOOKUPS;
   const [cliRes, catRes, formaRes] = await Promise.all([
-    db.select('clientes', { select: 'id, nome, documento', orderBy: { column: 'nome', ascending: true } }),
+    db.select('clientes', { select: 'id, nome, documento, observacao', orderBy: { column: 'nome', ascending: true } }),
     db.select('categorias', { select: 'id, nome', orderBy: { column: 'nome', ascending: true } }),
     db.select('formas_pagamento', { select: 'id, nome', orderBy: { column: 'nome', ascending: true } }),
   ]);
@@ -31,9 +31,10 @@ async function ensureLookups() {
   const formas = formaRes.data || [];
   const mapCli = new Map(clientes.map(c => [c.id, c.nome]));
   const mapCliDoc = new Map(clientes.map(c => [c.id, c.documento || '']));
+  const mapCliObs = new Map(clientes.map(c => [c.id, (c.observacao || '')]));
   const mapCat = new Map(categorias.map(c => [c.id, c.nome]));
   const mapForma = new Map(formas.map(f => [f.id, f.nome]));
-  LOOKUPS = { clientes, categorias, formas, mapCli, mapCliDoc, mapCat, mapForma };
+  LOOKUPS = { clientes, categorias, formas, mapCli, mapCliDoc, mapCliObs, mapCat, mapForma };
   return LOOKUPS;
 }
 
@@ -461,7 +462,7 @@ export async function renderRecebimentos(app) {
     const idsCat = Array.from(new Set(rows.map(r => r.categoria_id).filter(Boolean)));
     const idsForma = Array.from(new Set(rows.map(r => r.forma_pagamento_id).filter(Boolean)));
     const [cliRes, catRes, formaRes] = await Promise.all([
-      idsCli.length ? db.select('clientes', { select: 'id, nome, regime_tributario, tipo_empresa', in: { id: idsCli } }) : Promise.resolve({ data: [] }),
+      idsCli.length ? db.select('clientes', { select: 'id, nome, regime_tributario, tipo_empresa, observacao', in: { id: idsCli } }) : Promise.resolve({ data: [] }),
       idsCat.length ? db.select('categorias', { select: 'id, nome', in: { id: idsCat } }) : Promise.resolve({ data: [] }),
       idsForma.length ? db.select('formas_pagamento', { select: 'id, nome', in: { id: idsForma } }) : Promise.resolve({ data: [] }),
     ]);
@@ -469,9 +470,10 @@ export async function renderRecebimentos(app) {
     const mapCli = new Map(cliRows.map(c => [c.id, c.nome]));
     const mapCliRegime = new Map(cliRows.map(c => [c.id, c.regime_tributario || '']));
     const mapCliTipo = new Map(cliRows.map(c => [c.id, c.tipo_empresa || '']));
+    const mapCliObs = new Map(cliRows.map(c => [c.id, (c.observacao || '')]));
     const mapCat = new Map((catRes.data || []).map(c => [c.id, c.nome]));
     const mapForma = new Map((formaRes.data || []).map(f => [f.id, f.nome]));
-    return { mapCli, mapCliRegime, mapCliTipo, mapCat, mapForma };
+    return { mapCli, mapCliRegime, mapCliTipo, mapCliObs, mapCat, mapForma };
   }
 
   async function load() {
@@ -516,7 +518,7 @@ export async function renderRecebimentos(app) {
     if (myVersion !== loadVersion) return;
   
     currentRows = rows;
-    const { mapCli, mapCliRegime, mapCliTipo, mapCat, mapForma } = await buildMaps(rows);
+    const { mapCli, mapCliRegime, mapCliTipo, mapCliObs, mapCat, mapForma } = await buildMaps(rows);
   
     // checa novamente após lookups (também assíncrono)
     if (myVersion !== loadVersion) return;
@@ -526,6 +528,7 @@ export async function renderRecebimentos(app) {
       cliente_nome: mapCli.get(r.cliente_id) || '—',
       cliente_regime_tributario: mapCliRegime.get(r.cliente_id) || '',
       cliente_tipo_empresa: mapCliTipo.get(r.cliente_id) || '',
+      cliente_observacao: mapCliObs.get(r.cliente_id) || '',
       categoria_nome: mapCat.get(r.categoria_id) || '—',
       forma_pagamento_nome: mapForma.get(r.forma_pagamento_id) || '—',
     }));
@@ -662,7 +665,14 @@ export async function renderRecebimentos(app) {
           }
           return sanitizeText(desc);
         } },
-        { key: 'cliente_nome', label: 'Cliente' },
+        { key: 'cliente_nome', label: 'Cliente', render: (v, r) => {
+          const nome = (v ?? '').toString();
+          const hint = (r.cliente_observacao ?? LOOKUPS?.mapCliObs?.get(r.cliente_id) ?? '').toString();
+          if (hint) {
+            return `<span class="hint-hover" data-hint="${sanitizeText(hint)}">${sanitizeText(nome)} <span class="hint-icon" aria-hidden="true" title="Observação do cliente">ℹ️</span></span>`;
+          }
+          return sanitizeText(nome);
+        } },
         { key: 'categoria_nome', label: 'Categoria' },
         { key: 'forma_pagamento_nome', label: 'Forma Rec.' },
         { key: 'valor_esperado', label: 'Esperado', render: v => `<strong>${formatCurrency(v)}</strong>` },
