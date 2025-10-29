@@ -174,6 +174,7 @@ async function relatorioDespesas(rows) {
 }
 
 export async function renderPagamentos(app) {
+  const lookups = await ensureLookups();
   app.innerHTML = `
     <div class="toolbar">
       <div class="filters">
@@ -181,9 +182,12 @@ export async function renderPagamentos(app) {
         <select id="fTipo"><option value="">Todos</option><option value="fixo">Fixo</option><option value="avulso">Avulso</option><option value="parcelado">Parcelado</option></select>
         <input type="date" id="fDe" />
         <input type="date" id="fAte" />
-        <input id="fForNome" placeholder="Fornecedor (nome)" />
-        <input id="fCategoriaNome" placeholder="Categoria (nome)" />
-        <input id="fFormaNome" placeholder="Forma de pagamento (nome)" />
+        <input id="fForNome" list="fForOptions" placeholder="Fornecedor (nome)" />
+        <datalist id="fForOptions">${(lookups.fornecedores||[]).map(f => `<option value="${f.nome}"></option>`).join('')}</datalist>
+        <input id="fCategoriaNome" list="fCatOptions" placeholder="Categoria (nome)" />
+        <datalist id="fCatOptions">${(lookups.categorias||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
+        <input id="fFormaNome" list="fFormaOptions" placeholder="Forma de pagamento (nome)" />
+        <datalist id="fFormaOptions">${(lookups.formas||[]).map(f => `<option value="${f.nome}"></option>`).join('')}</datalist>
         <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;">
           <input type="checkbox" id="fOnlyOverdue" /> Somente em atraso
         </label>

@@ -384,6 +384,7 @@ async function gerarRecorrencia(baseRow, meses = 6) {
 }
 
 export async function renderRecebimentos(app) {
+  const lookups = await ensureLookups();
   app.innerHTML = `
     <div class="toolbar">
       <div class="filters">
@@ -391,9 +392,12 @@ export async function renderRecebimentos(app) {
         <select id="fTipo"><option value="">Todos</option><option value="mensal">Mensal</option><option value="avulso">Avulso</option><option value="parcelado">Parcelado</option></select>
         <input type="date" id="fDe" />
         <input type="date" id="fAte" />
-        <input id="fCliNome" placeholder="Cliente (nome)" />
-        <input id="fCategoriaNome" placeholder="Categoria (nome)" />
-        <input id="fFormaNome" placeholder="Forma de recebimento (nome)" />
+        <input id="fCliNome" list="fCliOptions" placeholder="Cliente (nome)" />
+        <datalist id="fCliOptions">${(lookups.clientes||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
+        <input id="fCategoriaNome" list="fCatOptions" placeholder="Categoria (nome)" />
+        <datalist id="fCatOptions">${(lookups.categorias||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
+        <input id="fFormaNome" list="fFormaOptions" placeholder="Forma de recebimento (nome)" />
+        <datalist id="fFormaOptions">${(lookups.formas||[]).map(f => `<option value="${f.nome}"></option>`).join('')}</datalist>
         <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;">
           <input type="checkbox" id="fOnlyOverdue" /> Somente em atraso
         </label>
