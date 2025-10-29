@@ -71,9 +71,9 @@ function pagamentoForm(initial = {}, lookups = { fornecedores: [], categorias: [
         </div>
         <div class="field sm"><label>Tipo</label>
           <select id="tipo_pagamento">
-            <option value="variavel" ${initial.tipo_pagamento==='variavel'?'selected':''}>Variável</option>
+            <option value="avulso" ${initial.tipo_pagamento==='avulso'?'selected':''}>Avulso</option>
             <option value="fixo" ${initial.tipo_pagamento==='fixo'?'selected':''}>Fixo</option>
-            <option value="comissao" ${initial.tipo_pagamento==='comissao'?'selected':''}>Comissão</option>
+            <option value="parcelado" ${initial.tipo_pagamento==='parcelado'?'selected':''}>Parcelado</option>
           </select>
         </div>
         <div class="field sm"><label>Parcela Atual</label><input type="number" id="parcela_atual" value="${initial.parcela_atual||1}" /></div>
@@ -82,7 +82,7 @@ function pagamentoForm(initial = {}, lookups = { fornecedores: [], categorias: [
       <div class="form-row" style="margin-top:12px">
         <div class="field full"><label>Observações</label><textarea id="observacoes">${initial.observacoes||''}</textarea></div>
       </div>
-      <p class="muted">Para comissões, você pode definir o valor esperado com base em uma porcentagem manual.</p>
+      <p class="muted">Você pode definir o valor esperado com base em uma porcentagem manual, se necessário.</p>
     </form>`;
 }
 
@@ -178,7 +178,7 @@ export async function renderPagamentos(app) {
     <div class="toolbar">
       <div class="filters">
         <select id="fStatus"><option value="">Todos</option><option value="pendente">Pendente</option><option value="pago">Pago</option><option value="cancelado">Cancelado</option></select>
-        <select id="fTipo"><option value="">Todos</option><option value="fixo">Fixo</option><option value="variavel">Variável</option><option value="parcelado">Parcelado</option></select>
+        <select id="fTipo"><option value="">Todos</option><option value="fixo">Fixo</option><option value="avulso">Avulso</option><option value="parcelado">Parcelado</option></select>
         <input type="date" id="fDe" />
         <input type="date" id="fAte" />
         <input id="fForNome" placeholder="Fornecedor (nome)" />

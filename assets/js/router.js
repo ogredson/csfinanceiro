@@ -56,10 +56,16 @@ export async function navigate(path) {
   const headerActions = document.querySelector('.header-actions');
   const toggleBtn = document.getElementById('toggleSidebar');
   const brand = document.querySelector('.brand');
+  const main = document.querySelector('.app-main');
   const onLogin = path === '/login';
-  if (sidebar) sidebar.style.display = onLogin ? 'none' : 'block';
-  if (headerActions) headerActions.style.display = onLogin ? 'none' : 'flex';
-  if (toggleBtn) toggleBtn.style.display = onLogin ? 'none' : 'block';
+  // Clear inline styles when not on login to restore CSS defaults
+  if (sidebar) {
+    sidebar.classList.remove('open');
+    sidebar.style.display = onLogin ? 'none' : '';
+  }
+  if (headerActions) headerActions.style.display = onLogin ? 'none' : '';
+  if (toggleBtn) toggleBtn.style.display = onLogin ? 'none' : '';
+  if (main) main.style.marginLeft = onLogin ? '0' : '240px';
   if (brand) brand.style.pointerEvents = onLogin ? 'none' : 'auto';
 }
 

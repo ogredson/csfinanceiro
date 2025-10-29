@@ -73,7 +73,7 @@ function recebimentoForm(initial = {}, lookups = { clientes: [], categorias: [],
           <select id="tipo_recebimento">
             <option value="mensal" ${initial.tipo_recebimento==='mensal'?'selected':''}>Mensal</option>
             <option value="avulso" ${initial.tipo_recebimento==='avulso'?'selected':''}>Avulso</option>
-            <option value="projeto" ${initial.tipo_recebimento==='projeto'?'selected':''}>Projeto</option>
+            <option value="parcelado" ${initial.tipo_recebimento==='parcelado'?'selected':''}>Parcelado</option>
           </select>
         </div>
         <div class="field sm"><label>Parcela Atual</label><input type="number" id="parcela_atual" value="${initial.parcela_atual||1}" /></div>
@@ -388,7 +388,7 @@ export async function renderRecebimentos(app) {
     <div class="toolbar">
       <div class="filters">
         <select id="fStatus"><option value="">Todos</option><option value="pendente">Pendente</option><option value="recebido">Recebido</option><option value="cancelado">Cancelado</option></select>
-        <select id="fTipo"><option value="">Todos</option><option value="mensal">Mensal</option><option value="avulso">Avulso</option><option value="projeto">Projeto</option></select>
+        <select id="fTipo"><option value="">Todos</option><option value="mensal">Mensal</option><option value="avulso">Avulso</option><option value="parcelado">Parcelado</option></select>
         <input type="date" id="fDe" />
         <input type="date" id="fAte" />
         <input id="fCliNome" placeholder="Cliente (nome)" />
