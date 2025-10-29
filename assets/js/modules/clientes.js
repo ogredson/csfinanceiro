@@ -4,7 +4,7 @@ import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
 async function fetchClientes() {
-  const { data, error } = await db.select('clientes', { select: 'id, nome, email, telefone, documento, tipo_empresa, regime_tributario, ativo, created_at', orderBy: { column: 'created_at', ascending: false } });
+  const { data, error } = await db.select('clientes', { select: 'id, nome, email, telefone, documento, tipo_empresa, regime_tributario, observacao, ativo, created_at', orderBy: { column: 'created_at', ascending: false } });
   if (error) { showToast(error.message || 'Erro ao carregar clientes', 'error'); return []; }
   return data || [];
 }
@@ -35,6 +35,9 @@ function clienteForm(initial = {}) {
         </div>
         <div class="field"><label>Ativo</label><select id="ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div>
       </div>
+      <div class="form-row" style="margin-top:12px">
+        <div class="field full"><label>Observação</label><textarea id="observacao" rows="3">${initial.observacao||''}</textarea></div>
+      </div>
     </form>`;
 }
 
@@ -47,6 +50,7 @@ function getCliFormValues(modal) {
     documento: getVal('documento') || null,
     tipo_empresa: getVal('tipo_empresa') || null,
     regime_tributario: getVal('regime_tributario') || null,
+    observacao: getVal('observacao') || null,
     ativo: getVal('ativo') === 'true',
   };
 }

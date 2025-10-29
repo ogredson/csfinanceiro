@@ -4,7 +4,7 @@ import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
 async function fetchFornecedores() {
-  const { data, error } = await db.select('fornecedores', { select: 'id, nome, email, telefone, documento, ativo, created_at', orderBy: { column: 'created_at', ascending: false } });
+  const { data, error } = await db.select('fornecedores', { select: 'id, nome, email, telefone, documento, observacao, ativo, created_at', orderBy: { column: 'created_at', ascending: false } });
   if (error) { showToast(error.message || 'Erro ao carregar fornecedores', 'error'); return []; }
   return data || [];
 }
@@ -19,6 +19,9 @@ function fornecedorForm(initial = {}) {
         <div class="field"><label>Documento</label><input id="documento" value="${initial.documento||''}"/></div>
         <div class="field"><label>Ativo</label><select id="ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div>
       </div>
+      <div class="form-row" style="margin-top:12px">
+        <div class="field full"><label>Observação</label><textarea id="observacao" rows="3">${initial.observacao||''}</textarea></div>
+      </div>
     </form>`;
 }
 
@@ -29,6 +32,7 @@ function getFornFormValues(modal) {
     email: getVal('email') || null,
     telefone: getVal('telefone') || null,
     documento: getVal('documento') || null,
+    observacao: getVal('observacao') || null,
     ativo: getVal('ativo') === 'true',
   };
 }
