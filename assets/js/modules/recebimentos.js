@@ -413,6 +413,20 @@ export async function renderRecebimentos(app) {
           <option value="asc" selected>Ascendente</option>
           <option value="desc">Descendente</option>
         </select>
+        <select id="fCliRegime" style="margin-left:8px;">
+          <option value="">Regime Tributário (todos)</option>
+          <option value="simples nacional">Simples Nacional</option>
+          <option value="lucro real">Lucro Real</option>
+          <option value="lucro presumido">Lucro Presumido</option>
+          <option value="outro">Outro</option>
+        </select>
+        <select id="fCliTipoEmpresa" style="margin-left:8px;">
+          <option value="">Tipo de Empresa (todos)</option>
+          <option value="comercio">Comércio</option>
+          <option value="servico">Serviço</option>
+          <option value="comercio e servico">Comércio e Serviço</option>
+          <option value="industria">Indústria</option>
+        </select>
       </div>
       <div>
         <div id="totalsRec" class="totals-box totals-rec">
@@ -431,6 +445,8 @@ export async function renderRecebimentos(app) {
   let qCli = '';
   let qCat = '';
   let qForma = '';
+  let fRegime = '';
+  let fTipoEmp = '';
   const perPage = 20;
   let page = 1;
   let sortField = 'data_vencimento';
@@ -445,14 +461,17 @@ export async function renderRecebimentos(app) {
     const idsCat = Array.from(new Set(rows.map(r => r.categoria_id).filter(Boolean)));
     const idsForma = Array.from(new Set(rows.map(r => r.forma_pagamento_id).filter(Boolean)));
     const [cliRes, catRes, formaRes] = await Promise.all([
-      idsCli.length ? db.select('clientes', { select: 'id, nome', in: { id: idsCli } }) : Promise.resolve({ data: [] }),
+      idsCli.length ? db.select('clientes', { select: 'id, nome, regime_tributario, tipo_empresa', in: { id: idsCli } }) : Promise.resolve({ data: [] }),
       idsCat.length ? db.select('categorias', { select: 'id, nome', in: { id: idsCat } }) : Promise.resolve({ data: [] }),
       idsForma.length ? db.select('formas_pagamento', { select: 'id, nome', in: { id: idsForma } }) : Promise.resolve({ data: [] }),
     ]);
-    const mapCli = new Map((cliRes.data || []).map(c => [c.id, c.nome]));
+    const cliRows = cliRes.data || [];
+    const mapCli = new Map(cliRows.map(c => [c.id, c.nome]));
+    const mapCliRegime = new Map(cliRows.map(c => [c.id, c.regime_tributario || '']));
+    const mapCliTipo = new Map(cliRows.map(c => [c.id, c.tipo_empresa || '']));
     const mapCat = new Map((catRes.data || []).map(c => [c.id, c.nome]));
     const mapForma = new Map((formaRes.data || []).map(f => [f.id, f.nome]));
-    return { mapCli, mapCat, mapForma };
+    return { mapCli, mapCliRegime, mapCliTipo, mapCat, mapForma };
   }
 
   async function load() {
@@ -460,7 +479,7 @@ export async function renderRecebimentos(app) {
     const myVersion = ++loadVersion;
     setLoading(cont, true);
     // remove limpeza imediata para evitar race conditions
-    const serverMode = !qCli && !qCat && !qForma;
+    const serverMode = !qCli && !qCat && !qForma && !fRegime && !fTipoEmp;
     let rows = [];
     let totalPages = 1;
   
@@ -497,7 +516,7 @@ export async function renderRecebimentos(app) {
     if (myVersion !== loadVersion) return;
   
     currentRows = rows;
-    const { mapCli, mapCat, mapForma } = await buildMaps(rows);
+    const { mapCli, mapCliRegime, mapCliTipo, mapCat, mapForma } = await buildMaps(rows);
   
     // checa novamente após lookups (também assíncrono)
     if (myVersion !== loadVersion) return;
@@ -505,6 +524,8 @@ export async function renderRecebimentos(app) {
     const enriched = rows.map(r => ({
       ...r,
       cliente_nome: mapCli.get(r.cliente_id) || '—',
+      cliente_regime_tributario: mapCliRegime.get(r.cliente_id) || '',
+      cliente_tipo_empresa: mapCliTipo.get(r.cliente_id) || '',
       categoria_nome: mapCat.get(r.categoria_id) || '—',
       forma_pagamento_nome: mapForma.get(r.forma_pagamento_id) || '—',
     }));
@@ -567,7 +588,10 @@ export async function renderRecebimentos(app) {
       const cls = `days-text${highlight ? ' days-highlight' : ''}`;
       return `<span class="${cls}" style="${style}">${text}</span>`;
     }
-    const nameFiltered = serverMode ? enriched : enriched.filter(r => ilike(r.cliente_nome, qCli) && ilike(r.categoria_nome, qCat) && ilike(r.forma_pagamento_nome, qForma));
+    const baseFiltered = serverMode ? enriched : enriched.filter(r => ilike(r.cliente_nome, qCli) && ilike(r.categoria_nome, qCat) && ilike(r.forma_pagamento_nome, qForma));
+    const regimeFiltered = baseFiltered.filter(r => !fRegime || (r.cliente_regime_tributario || '') === fRegime);
+    const tipoEmpFiltered = regimeFiltered.filter(r => !fTipoEmp || (r.cliente_tipo_empresa || '') === fTipoEmp);
+    const nameFiltered = tipoEmpFiltered;
     const filtered = (filters.onlyOverdue) ? nameFiltered.filter(r => isOverdue(r)) : nameFiltered;
 
     function getSortVal(obj, key) {
@@ -697,6 +721,8 @@ export async function renderRecebimentos(app) {
   document.getElementById('fFormaNome').addEventListener('input', (e) => { qForma = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; page = 1; load(); });
   document.getElementById('sortDir').addEventListener('change', (e) => { sortDir = e.target.value; page = 1; load(); });
+  document.getElementById('fCliRegime').addEventListener('change', (e) => { fRegime = (e.target.value||'').trim(); page = 1; load(); });
+  document.getElementById('fCliTipoEmpresa').addEventListener('change', (e) => { fTipoEmp = (e.target.value||'').trim(); page = 1; load(); });
   document.getElementById('newRec').addEventListener('click', openCreate);
   document.getElementById('relatorio').addEventListener('click', () => {
     // gera CSV do resultado atual do grid

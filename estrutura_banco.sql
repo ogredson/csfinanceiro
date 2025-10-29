@@ -11,6 +11,8 @@ CREATE TABLE clientes (
     email TEXT,
     telefone TEXT,
     documento TEXT,
+    tipo_empresa TEXT CHECK (tipo_empresa IN ('comercio', 'servico', 'comercio e servico', 'industria')),
+    regime_tributario TEXT CHECK (regime_tributario IN ('simples nacional', 'lucro real', 'lucro presumido', 'outro')),
     ativo BOOLEAN DEFAULT true,
 		id_cliente bigint null,
     created_at TIMESTAMPTZ DEFAULT NOW()

@@ -4,7 +4,7 @@ import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
 async function fetchClientes() {
-  const { data, error } = await db.select('clientes', { select: 'id, nome, email, telefone, documento, ativo, created_at', orderBy: { column: 'created_at', ascending: false } });
+  const { data, error } = await db.select('clientes', { select: 'id, nome, email, telefone, documento, tipo_empresa, regime_tributario, ativo, created_at', orderBy: { column: 'created_at', ascending: false } });
   if (error) { showToast(error.message || 'Erro ao carregar clientes', 'error'); return []; }
   return data || [];
 }
@@ -17,6 +17,22 @@ function clienteForm(initial = {}) {
         <div class="field"><label>Email</label><input type="email" id="email" value="${initial.email||''}"/></div>
         <div class="field"><label>Telefone</label><input id="telefone" value="${initial.telefone||''}"/></div>
         <div class="field"><label>Documento</label><input id="documento" value="${initial.documento||''}"/></div>
+        <div class="field"><label>Tipo de Empresa</label>
+          <select id="tipo_empresa">
+            <option value="comercio" ${initial.tipo_empresa==='comercio'?'selected':''}>Comércio</option>
+            <option value="servico" ${initial.tipo_empresa==='servico'?'selected':''}>Serviço</option>
+            <option value="comercio e servico" ${initial.tipo_empresa==='comercio e servico'?'selected':''}>Comércio e Serviço</option>
+            <option value="industria" ${initial.tipo_empresa==='industria'?'selected':''}>Indústria</option>
+          </select>
+        </div>
+        <div class="field"><label>Regime Tributário</label>
+          <select id="regime_tributario">
+            <option value="simples nacional" ${initial.regime_tributario==='simples nacional'?'selected':''}>Simples Nacional</option>
+            <option value="lucro real" ${initial.regime_tributario==='lucro real'?'selected':''}>Lucro Real</option>
+            <option value="lucro presumido" ${initial.regime_tributario==='lucro presumido'?'selected':''}>Lucro Presumido</option>
+            <option value="outro" ${initial.regime_tributario==='outro'?'selected':''}>Outro</option>
+          </select>
+        </div>
         <div class="field"><label>Ativo</label><select id="ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div>
       </div>
     </form>`;
@@ -29,6 +45,8 @@ function getCliFormValues(modal) {
     email: getVal('email') || null,
     telefone: getVal('telefone') || null,
     documento: getVal('documento') || null,
+    tipo_empresa: getVal('tipo_empresa') || null,
+    regime_tributario: getVal('regime_tributario') || null,
     ativo: getVal('ativo') === 'true',
   };
 }
@@ -94,7 +112,7 @@ export async function renderClientes(app) {
   function applyFilter(rows = []) {
     if (!q) return rows;
     const term = q.toLowerCase();
-    return rows.filter(r => [r.nome, r.email, r.telefone, r.documento]
+    return rows.filter(r => [r.nome, r.email, r.telefone, r.documento, r.tipo_empresa, r.regime_tributario]
       .some(v => (v || '').toString().toLowerCase().includes(term))
     );
   }
@@ -112,6 +130,8 @@ export async function renderClientes(app) {
         { key: 'email', label: 'Email' },
         { key: 'telefone', label: 'Telefone' },
         { key: 'documento', label: 'Documento' },
+        { key: 'tipo_empresa', label: 'Tipo de Empresa' },
+        { key: 'regime_tributario', label: 'Regime Tributário' },
         { key: 'ativo', label: 'Status', render: v => `<span class="status-pill ${v?'status-recebido':'status-cancelado'}">${v?'Ativo':'Inativo'}</span>` },
       ],
       rows: filtered,
