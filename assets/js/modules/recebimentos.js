@@ -115,6 +115,68 @@ async function openCreate() {
   const lookups = await ensureLookups();
   const { modal, close } = createModal({ title: 'Novo Recebimento', content: recebimentoForm({}, lookups), actions: [
     { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
+    { label: 'Gerar Parcelamento', className: 'btn btn-success', onClick: async ({ close }) => {
+      const values = getRecFormValues(modal, lookups);
+      const nomeCli = modal.querySelector('#cliente_nome')?.value?.trim();
+      const nomeCat = modal.querySelector('#categoria_nome')?.value?.trim();
+      const nomeFor = modal.querySelector('#forma_nome')?.value?.trim();
+      if (nomeCli && !values.cliente_id) { showToast('Selecione um cliente válido da lista', 'error'); return; }
+      if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
+      if (nomeFor && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      // validações de parcelamento
+      if (values.tipo_recebimento !== 'parcelado') { showToast('Tipo de recebimento precisa ser "parcelado" para gerar parcelas.', 'warning'); return; }
+      if (!values.total_parcelas || values.total_parcelas <= 1) { showToast('Total de parcelas deve ser maior que 1 para gerar parcelamento.', 'warning'); return; }
+      if (!values.parcela_atual || values.parcela_atual !== 1) { showToast('Para gerar parcelamento, informe Parcela Atual = 1.', 'warning'); return; }
+      if (!values.dia_recebimento || values.dia_recebimento < 1 || values.dia_recebimento > 31) { showToast('Informe o dia de pagamento/recebimento (1-31).', 'error'); return; }
+      if (!values.data_vencimento) { showToast('Informe a data de vencimento da primeira parcela.', 'error'); return; }
+
+      // helper para obter o último dia do mês
+      const daysInMonth = (y, mZeroBased) => new Date(y, mZeroBased + 1, 0).getDate();
+      const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+      const base = new Date(values.data_vencimento);
+      const diaPag = Number(values.dia_recebimento);
+
+      const inserts = [];
+      for (let i = 1; i <= values.total_parcelas; i++) {
+        let vencDate;
+        if (i === 1) {
+          // primeira parcela usa a data informada
+          vencDate = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+        } else {
+          // parcelas seguintes: meses consecutivos usando o dia do pagamento
+          const y = base.getFullYear();
+          const m = base.getMonth() + (i - 1); // avança meses
+          const dim = daysInMonth(y + Math.floor(m/12), (m % 12 + 12) % 12);
+          const day = Math.min(diaPag, dim);
+          vencDate = new Date(y, m, day);
+        }
+
+        inserts.push({
+          descricao: values.descricao,
+          cliente_id: values.cliente_id,
+          categoria_id: values.categoria_id,
+          forma_pagamento_id: values.forma_pagamento_id,
+          valor_esperado: values.valor_esperado,
+          valor_recebido: 0,
+          data_emissao: values.data_emissao || formatDate(),
+          data_vencimento: toISO(vencDate),
+          data_recebimento: null,
+          dia_recebimento: values.dia_recebimento,
+          status: values.status || 'pendente',
+          tipo_recebimento: 'parcelado',
+          parcela_atual: i,
+          total_parcelas: values.total_parcelas,
+          observacoes: values.observacoes || null,
+        });
+      }
+
+      const { error } = await db.insert('recebimentos', inserts);
+      if (error) { showToast(error.message||'Erro ao gerar parcelamento', 'error'); return; }
+      showToast(`Parcelas geradas: ${values.total_parcelas}`, 'success');
+      close();
+      window.location.hash = '#/recebimentos';
+    }},
     { label: 'Salvar', className: 'btn btn-primary', onClick: async ({ close }) => {
       const values = getRecFormValues(modal, lookups);
       const nomeCli = modal.querySelector('#cliente_nome')?.value?.trim();
@@ -123,6 +185,10 @@ async function openCreate() {
       if (nomeCli && !values.cliente_id) { showToast('Selecione um cliente válido da lista', 'error'); return; }
       if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
       if (nomeFor && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      // informação quando não há parcelamento
+      if (values.tipo_recebimento === 'parcelado' && values.parcela_atual === 1 && values.total_parcelas === 1) {
+        showToast('Parcela atual 1 de 1: crie um recebimento padrão (sem parcelamento).', 'info');
+      }
       const { error } = await db.insert('recebimentos', values);
       if (error) showToast(error.message||'Erro ao salvar', 'error'); else { showToast('Recebimento criado', 'success'); close(); }
       window.location.hash = '#/recebimentos';

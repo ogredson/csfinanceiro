@@ -117,6 +117,54 @@ async function openCreate() {
   const lookups = await ensureLookups();
   const { modal, close } = createModal({ title: 'Novo Pagamento', content: pagamentoForm({}, lookups), actions: [
     { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
+    { label: 'Gerar Parcelamento', className: 'btn btn-success', onClick: async ({ close }) => {
+      const values = getPagFormValues(modal, lookups);
+      const nomeFor = modal.querySelector('#fornecedor_nome')?.value?.trim();
+      const nomeCat = modal.querySelector('#categoria_nome')?.value?.trim();
+      const nomeForma = modal.querySelector('#forma_nome')?.value?.trim();
+      if (nomeFor && !values.fornecedor_id) { showToast('Selecione um fornecedor válido da lista', 'error'); return; }
+      if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
+      if (nomeForma && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      // validações de parcelamento
+      if (values.tipo_pagamento !== 'parcelado') { showToast('Tipo de pagamento precisa ser "parcelado" para gerar parcelas.', 'warning'); return; }
+      if (!values.total_parcelas || values.total_parcelas <= 1) { showToast('Total de parcelas deve ser maior que 1 para gerar parcelamento.', 'warning'); return; }
+      if (!values.parcela_atual || values.parcela_atual !== 1) { showToast('Para gerar parcelamento, informe Parcela Atual = 1.', 'warning'); return; }
+      if (!values.dia_pagamento || values.dia_pagamento < 1 || values.dia_pagamento > 31) { showToast('Informe o dia do pagamento (1-31).', 'error'); return; }
+      if (!values.data_vencimento) { showToast('Informe a data de vencimento da primeira parcela.', 'error'); return; }
+
+      const addDays = (dateObj, days) => new Date(dateObj.getTime() + days*86400000);
+      const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const base = new Date(values.data_vencimento);
+
+      const inserts = [];
+      for (let i = 1; i <= values.total_parcelas; i++) {
+        const vencDate = (i === 1) ? new Date(base.getFullYear(), base.getMonth(), base.getDate()) : addDays(base, 30*(i-1));
+        inserts.push({
+          descricao: values.descricao,
+          fornecedor_id: values.fornecedor_id,
+          categoria_id: values.categoria_id,
+          forma_pagamento_id: values.forma_pagamento_id,
+          beneficiario: values.beneficiario || null,
+          valor_esperado: values.valor_esperado,
+          valor_pago: 0,
+          data_emissao: values.data_emissao || formatDate(),
+          data_vencimento: toISO(vencDate),
+          data_pagamento: null,
+          dia_pagamento: values.dia_pagamento,
+          status: values.status || 'pendente',
+          tipo_pagamento: 'parcelado',
+          parcela_atual: i,
+          total_parcelas: values.total_parcelas,
+          observacoes: values.observacoes || null,
+        });
+      }
+
+      const { error } = await db.insert('pagamentos', inserts);
+      if (error) { showToast(error.message||'Erro ao gerar parcelamento', 'error'); return; }
+      showToast(`Parcelas geradas: ${values.total_parcelas}`, 'success');
+      close();
+      window.location.hash = '#/pagamentos';
+    }},
     { label: 'Salvar', className: 'btn btn-primary', onClick: async ({ close }) => {
       const values = getPagFormValues(modal, lookups);
       const nomeFor = modal.querySelector('#fornecedor_nome')?.value?.trim();
@@ -125,6 +173,9 @@ async function openCreate() {
       if (nomeFor && !values.fornecedor_id) { showToast('Selecione um fornecedor válido da lista', 'error'); return; }
       if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
       if (nomeForma && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      if (values.tipo_pagamento === 'parcelado' && values.parcela_atual === 1 && values.total_parcelas === 1) {
+        showToast('Parcela atual 1 de 1: crie um pagamento padrão (sem parcelamento).', 'info');
+      }
       const { error } = await db.insert('pagamentos', values);
       if (error) showToast(error.message||'Erro ao salvar', 'error'); else { showToast('Pagamento criado', 'success'); close(); }
       window.location.hash = '#/pagamentos';
