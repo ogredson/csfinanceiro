@@ -527,17 +527,8 @@ export async function renderRelatorios(app) {
         <button id="btnFluxoCat" class="btn btn-outline">Gerar fluxo de caixa por categorias</button>
       </div>
     </div>
-    <div class="grid cols-2">
-      <div class="card"><h3>Fluxo de Caixa (12m)</h3><canvas id="fluxo12m" height="140"></canvas></div>
-      <div class="card"><h3>MRR e Churn</h3><div id="kpiMrr">—</div><div id="kpiChurn">—</div><canvas id="mrrArea" height="140"></canvas></div>
-    </div>
-    <div class="grid cols-2" style="margin-top:16px;">
-      <div class="card"><h3>Receita por Categoria</h3><canvas id="receitaCat" height="140"></canvas></div>
-      <div class="card"><h3>Despesas por Categoria</h3><canvas id="despesaCat" height="140"></canvas></div>
-    </div>
-    <div class="grid cols-2" style="margin-top:16px;">
-      <div class="card"><h3>Performance por Cliente</h3><canvas id="perfCli" height="140"></canvas></div>
-      <div class="card"><h3>Projeções Futuras</h3><canvas id="projFut" height="140"></canvas></div>
+    <div class="card" style="margin-top:12px;">
+      <div class="muted">Use os controles acima para gerar calendários e fluxos em PDF.</div>
     </div>
   `;
 
@@ -567,32 +558,6 @@ export async function renderRelatorios(app) {
   setCampoDataLabels('pagamentos');
   window._campoDataRelatorios = campoSel.value;
   campoSel.addEventListener('change', () => { window._campoDataRelatorios = campoSel.value; });
-
-  const fluxo = await fluxoCaixaComparativo(dtInicio.value, dtFim.value);
-  const ctxFluxo = document.getElementById('fluxo12m');
-  const fluxoChart = new Chart(ctxFluxo, { type: 'bar', data: { labels: fluxo.months, datasets: [
-    { label: 'Entradas', data: fluxo.entradas, backgroundColor: 'rgba(16,185,129,0.5)' },
-    { label: 'Saídas', data: fluxo.saidas, backgroundColor: 'rgba(239,68,68,0.5)' },
-  ] }, options: { responsive: true } });
-  window._fluxo12mChart = fluxoChart;
-
-  const { mrr, churnRate } = await mrrChurn();
-  document.getElementById('kpiMrr').textContent = `MRR: ${formatCurrency(mrr)}`;
-  document.getElementById('kpiChurn').textContent = `Churn Rate: ${(churnRate*100).toFixed(2)}%`;
-  const ctxMrr = document.getElementById('mrrArea');
-  renderAreaChart(ctxMrr, fluxo.months, 'MRR', fluxo.months.map(()=>mrr));
-
-  const recCat = await receitaPorCategoria();
-  renderPieChart(document.getElementById('receitaCat'), recCat.labels, recCat.values);
-
-  const despCat = await despesasPorCategoria();
-  renderPieChart(document.getElementById('despesaCat'), despCat.labels, despCat.values);
-
-  const perfCli = await performancePorCliente();
-  renderBarChart(document.getElementById('perfCli'), perfCli.labels, 'Receita', perfCli.values);
-
-  const proj = await projecoesFuturas();
-  renderLineChart(document.getElementById('projFut'), proj.months, 'Receita Esperada', proj.values);
 
   // Eventos dos botões de topo
   document.getElementById('btnCalPag').addEventListener('click', async () => {

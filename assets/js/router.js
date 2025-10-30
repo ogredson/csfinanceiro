@@ -5,6 +5,7 @@ import { renderPagamentos } from './modules/pagamentos.js';
 import { renderClientes } from './modules/clientes.js';
 import { renderFornecedores } from './modules/fornecedores.js';
 import { renderRelatorios } from './modules/relatorios.js';
+import { renderGraficos } from './modules/graficos.js';
 import { renderConfig } from './modules/configuracoes.js';
 
 export const routes = {
@@ -14,6 +15,7 @@ export const routes = {
   '/pagamentos': renderPagamentos,
   '/clientes': renderClientes,
   '/fornecedores': renderFornecedores,
+  '/graficos': renderGraficos,
   '/relatorios': renderRelatorios,
   '/configuracoes': renderConfig,
 };
