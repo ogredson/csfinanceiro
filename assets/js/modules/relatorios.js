@@ -499,7 +499,7 @@ async function gerarCalendarioPagamentosPDF(startStr, endStr) {
 export async function renderRelatorios(app) {
   app.innerHTML = `
     <div class="toolbar">
-      <div class="filters" style="display:flex;gap:8px;align-items:center;">
+      <div class="filters" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         <label>Início <input type="date" id="dtInicio" /></label>
         <label>Fim <input type="date" id="dtFim" /></label>
         <label id="lblCampoData"><span id="lblCampoDataText">Campo de data</span>
@@ -509,26 +509,57 @@ export async function renderRelatorios(app) {
           </select>
         </label>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-        <button id="btnCalPag" class="btn btn-outline">Gerar Calendário de Pagamentos</button>
-        <button id="btnCalRec" class="btn btn-outline">Gerar Calendário de Recebimentos</button>
-        <label style="display:inline-flex;align-items:center;gap:6px;">
-          Saldo Inicial
-          <input type="number" id="saldoInicial" step="0.01" value="0" style="width:140px;" />
-        </label>
-        <label style="display:inline-flex;align-items:center;gap:6px;">
-          Tipo de Relatório
-          <select id="tipoRelatorio" style="width:120px;">
-            <option value="sintetico" selected>Sintético</option>
-            <option value="analitico">Analítico</option>
-          </select>
-        </label>
-        <button id="btnFluxo" class="btn btn-outline">Gerar Fluxo de Caixa</button>
-        <button id="btnFluxoCat" class="btn btn-outline">Gerar fluxo de caixa por categorias</button>
-      </div>
     </div>
-    <div class="card" style="margin-top:12px;">
-      <div class="muted">Use os controles acima para gerar calendários e fluxos em PDF.</div>
+
+    <div id="areasRel" class="areas">
+      <div class="card area" data-area-id="calendarios">
+        <div class="toolbar" style="justify-content:space-between;">
+          <h3>Calendários</h3>
+          <button class="btn btn-outline" data-toggle="calendarios">Mostrar/Ocultar</button>
+        </div>
+        <div class="area-body" id="areaBody_calendarios" style="display:block;">
+          <div class="muted" style="margin-bottom:8px;">Gere calendários de pagamentos e recebimentos para o período selecionado.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button id="btnCalPag" class="btn btn-outline">Gerar Calendário de Pagamentos</button>
+            <button id="btnCalRec" class="btn btn-outline">Gerar Calendário de Recebimentos</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card area" data-area-id="fluxo">
+        <div class="toolbar" style="justify-content:space-between;">
+          <h3>Fluxo de Caixa</h3>
+          <button class="btn btn-outline" data-toggle="fluxo">Mostrar/Ocultar</button>
+        </div>
+        <div class="area-body" id="areaBody_fluxo" style="display:block;">
+          <div class="muted" style="margin-bottom:8px;">Gere o fluxo de caixa (sintético ou analítico). Os controles abaixo se aplicam a ambos os botões.</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+            <label style="display:inline-flex;align-items:center;gap:6px;">
+              Saldo Inicial
+              <input type="number" id="saldoInicial" step="0.01" value="0" style="width:140px;" />
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;">
+              Tipo de Relatório
+              <select id="tipoRelatorio" style="width:140px;">
+                <option value="sintetico" selected>Sintético</option>
+                <option value="analitico">Analítico</option>
+              </select>
+            </label>
+            <button id="btnFluxo" class="btn btn-outline">Gerar Fluxo de Caixa</button>
+            <button id="btnFluxoCat" class="btn btn-outline">Gerar fluxo de caixa por categorias</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card area" data-area-id="extras">
+        <div class="toolbar" style="justify-content:space-between;">
+          <h3>Relatórios adicionais</h3>
+          <button class="btn btn-outline" data-toggle="extras">Mostrar/Ocultar</button>
+        </div>
+        <div class="area-body" id="areaBody_extras" style="display:none;">
+          <div class="empty-state">Em breve: novos relatórios e exportações.</div>
+        </div>
+      </div>
     </div>
   `;
 
@@ -558,6 +589,28 @@ export async function renderRelatorios(app) {
   setCampoDataLabels('pagamentos');
   window._campoDataRelatorios = campoSel.value;
   campoSel.addEventListener('change', () => { window._campoDataRelatorios = campoSel.value; });
+
+  // Controle de expansão de áreas (persistência)
+  const lsKey = 'REL_SECTIONS_OPEN';
+  const openSet = new Set(JSON.parse(localStorage.getItem(lsKey) || '[]'));
+  function applyOpenState() {
+    ['calendarios','fluxo','extras'].forEach(id => {
+      const body = document.getElementById(`areaBody_${id}`);
+      if (!body) return;
+      body.style.display = openSet.has(id) ? 'block' : 'none';
+    });
+  }
+  function toggleArea(id) {
+    if (openSet.has(id)) openSet.delete(id); else openSet.add(id);
+    localStorage.setItem(lsKey, JSON.stringify(Array.from(openSet)));
+    applyOpenState();
+  }
+  document.querySelectorAll('[data-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => toggleArea(btn.getAttribute('data-toggle')));
+  });
+  // inicializa (default: mostrar todas se nenhuma preferência)
+  if (openSet.size === 0) { ['calendarios','fluxo'].forEach(id => openSet.add(id)); localStorage.setItem(lsKey, JSON.stringify(Array.from(openSet))); }
+  applyOpenState();
 
   // Eventos dos botões de topo
   document.getElementById('btnCalPag').addEventListener('click', async () => {
