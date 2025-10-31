@@ -237,10 +237,12 @@ body {
 .totals-box .t-values { font-size:18px; font-weight:800; }
 .totals-rec { background: linear-gradient(135deg, #065f46 0%, #10b981 100%); }
 .totals-pag { background: linear-gradient(135deg, #7c2d12 0%, #f59e0b 100%); }
+.totals-mov { background: linear-gradient(135deg, #0f172a 0%, #1f2937 100%); }
 .totals-box:hover { filter: brightness(1.06); }
 
 /* Tema claro: versões suavizadas para legibilidade */
 .theme-day .totals-rec { background: linear-gradient(135deg, #D1FAE5 0%, #6EE7B7 100%); color:#064e3b; }
 .theme-day .totals-pag { background: linear-gradient(135deg, #FEF3C7 0%, #FCD34D 100%); color:#7c2d12; }
+.theme-day .totals-mov { background: linear-gradient(135deg, #E5E7EB 0%, #CBD5E1 100%); color:#111827; box-shadow: 0 6px 18px rgba(0,0,0,0.20), inset 0 0 0 1px rgba(0,0,0,0.06); }
 /* Blocos de Totais (linha extra para total geral) */
 .totals-box .t-grand { margin-top: 4px; font-size: 14px; font-weight: 700; opacity: .98; }

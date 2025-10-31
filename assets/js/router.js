@@ -7,6 +7,7 @@ import { renderFornecedores } from './modules/fornecedores.js';
 import { renderRelatorios } from './modules/relatorios.js';
 import { renderGraficos } from './modules/graficos.js';
 import { renderConfig } from './modules/configuracoes.js';
+import { renderMovimentacoes } from './modules/movimentacoes.js';
 
 export const routes = {
   '/login': renderAuth,
@@ -18,6 +19,7 @@ export const routes = {
   '/graficos': renderGraficos,
   '/relatorios': renderRelatorios,
   '/configuracoes': renderConfig,
+  '/movimentacoes': renderMovimentacoes,
 };
 
 export function getRouteFromHash() {

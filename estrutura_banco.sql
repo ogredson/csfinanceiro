@@ -119,3 +119,31 @@ CREATE INDEX idx_pagamentos_fornecedor_id ON pagamentos(fornecedor_id);
 CREATE INDEX idx_pagamentos_data_vencimento ON pagamentos(data_vencimento);
 CREATE INDEX idx_pagamentos_status ON pagamentos(status);
 
+CREATE TABLE movimentacoes_diarias (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    tipo TEXT NOT NULL CHECK (tipo IN ('entrada', 'saida')),
+    
+    -- Relacionamentos opcionais com clientes/fornecedores
+    cliente_id UUID REFERENCES clientes(id) ON DELETE SET NULL,
+    fornecedor_id UUID REFERENCES fornecedores(id) ON DELETE SET NULL,
+    
+    -- Campo para digitação manual (usado quando não há cliente/fornecedor selecionado)
+    beneficiario_manual TEXT,
+    
+    categoria_id UUID REFERENCES categorias(id) ON DELETE SET NULL,
+    forma_pagamento_id UUID REFERENCES formas_pagamento(id) ON DELETE SET NULL,
+    descricao TEXT NOT NULL,
+    valor DECIMAL(15,2) NOT NULL,
+    data_transacao DATE DEFAULT CURRENT_DATE,
+    responsavel TEXT, -- Quem autorizou/realizou a transação
+    observacoes TEXT,
+    comprovante_url TEXT, -- URL para imagem/comprovante
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Índices para performance
+CREATE INDEX idx_movimentacoes_diarias_tipo ON movimentacoes_diarias(tipo);
+CREATE INDEX idx_movimentacoes_diarias_data ON movimentacoes_diarias(data_transacao);
+CREATE INDEX idx_movimentacoes_diarias_categoria ON movimentacoes_diarias(categoria_id);
+CREATE INDEX idx_movimentacoes_diarias_cliente ON movimentacoes_diarias(cliente_id);
+CREATE INDEX idx_movimentacoes_diarias_fornecedor ON movimentacoes_diarias(fornecedor_id);
