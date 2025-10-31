@@ -456,55 +456,91 @@ async function gerarRecorrencia(baseRow, meses = 6) {
 export async function renderRecebimentos(app) {
   const lookups = await ensureLookups();
   app.innerHTML = `
-    <div class="toolbar">
-      <div class="filters">
-        <select id="fStatus"><option value="">Todos</option><option value="pendente">Pendente</option><option value="recebido">Recebido</option><option value="cancelado">Cancelado</option></select>
-        <select id="fTipo"><option value="">Todos</option><option value="mensal">Mensal</option><option value="avulso">Avulso</option><option value="parcelado">Parcelado</option></select>
-        <input type="date" id="fDe" />
-        <input type="date" id="fAte" />
-        <label style="display:inline-flex;align-items:center;gap:6px;">
-          <span>Campo de data</span>
-          <select id="fDateField">
-            <option value="data_vencimento" selected>Por Vencimento</option>
-            <option value="data_recebimento">Por Recebimento</option>
-          </select>
-        </label>
-        <input id="fCliNome" list="fCliOptions" placeholder="Cliente (nome)" />
-        <datalist id="fCliOptions">${(lookups.clientes||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
-        <input id="fDescricao" placeholder="Descrição (texto)" />
-        <input id="fCategoriaNome" list="fCatOptions" placeholder="Categoria (nome)" />
-        <datalist id="fCatOptions">${(lookups.categorias||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
-        <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;">
-          <input type="checkbox" id="fOnlyOverdue" /> Somente em atraso
-        </label>
-        <button id="applyFilters" class="btn btn-primary btn-prominent">🔎 Filtrar</button>
-        <select id="sortField" style="margin-left:8px;">
-          <option value="data_vencimento" selected>Ordenar por Data Venc.</option>
-          <option value="data_recebimento">Ordenar por Data Rec.</option>
-          <option value="descricao">Ordenar por Descrição</option>
-          <option value="valor_esperado">Ordenar por Valor Esperado</option>
-          <option value="valor_recebido">Ordenar por Valor Recebido</option>
-        </select>
-        <select id="sortDir" style="margin-left:8px;">
-          <option value="asc" selected>Ascendente</option>
-          <option value="desc">Descendente</option>
-        </select>
-        <select id="fCliRegime" style="margin-left:8px;">
-          <option value="">Regime Tributário (todos)</option>
-          <option value="simples nacional">Simples Nacional</option>
-          <option value="lucro real">Lucro Real</option>
-          <option value="lucro presumido">Lucro Presumido</option>
-          <option value="outro">Outro</option>
-        </select>
-        <select id="fCliTipoEmpresa" style="margin-left:8px;">
-          <option value="">Tipo de Empresa (todos)</option>
-          <option value="comercio">Comércio</option>
-          <option value="servico">Serviço</option>
-          <option value="comercio e servico">Comércio e Serviço</option>
-          <option value="industria">Indústria</option>
-        </select>
-      </div>
-      <div>
+    <div class="toolbar" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+      <details class="filters-panel" id="filtersPanel" style="flex:1;" open>
+        <summary class="btn btn-outline" style="cursor:pointer;">Mostrar filtros</summary>
+        <div class="filters" style="display:grid;grid-template-columns:repeat(3, minmax(220px, 1fr));gap:10px;padding:10px 0;">
+          <fieldset style="border:1px solid #e5e7eb;border-radius:6px;padding:8px;">
+            <legend style="font-size:12px;color:#374151;">Status e Tipo</legend>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <select id="fStatus"><option value="">Todos</option><option value="pendente">Pendente</option><option value="recebido">Recebido</option><option value="cancelado">Cancelado</option></select>
+              <select id="fTipo"><option value="">Todos</option><option value="mensal">Mensal</option><option value="avulso">Avulso</option><option value="parcelado">Parcelado</option></select>
+            </div>
+          </fieldset>
+
+          <fieldset style="border:1px solid #e5e7eb;border-radius:6px;padding:8px;">
+            <legend style="font-size:12px;color:#374151;">Período</legend>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <input type="date" id="fDe" />
+              <input type="date" id="fAte" />
+              <label style="display:inline-flex;align-items:center;gap:6px;">
+                <span>Campo de data</span>
+                <select id="fDateField">
+                  <option value="data_vencimento" selected>Por Vencimento</option>
+                  <option value="data_recebimento">Por Recebimento</option>
+                </select>
+              </label>
+              <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;">
+                <input type="checkbox" id="fOnlyOverdue" /> Somente em atraso
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset style="border:1px solid #e5e7eb;border-radius:6px;padding:8px;">
+            <legend style="font-size:12px;color:#374151;">Pesquisa</legend>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <input id="fCliNome" list="fCliOptions" placeholder="Cliente (nome)" />
+              <datalist id="fCliOptions">${(lookups.clientes||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
+              <input id="fDescricao" placeholder="Descrição (texto)" />
+              <input id="fCategoriaNome" list="fCatOptions" placeholder="Categoria (nome)" />
+              <datalist id="fCatOptions">${(lookups.categorias||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
+            </div>
+          </fieldset>
+
+          <fieldset style="border:1px solid #e5e7eb;border-radius:6px;padding:8px;">
+            <legend style="font-size:12px;color:#374151;">Ordenação</legend>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <select id="sortField">
+                <option value="data_vencimento" selected>Ordenar por Data Venc.</option>
+                <option value="data_recebimento">Ordenar por Data Rec.</option>
+                <option value="descricao">Ordenar por Descrição</option>
+                <option value="valor_esperado">Ordenar por Valor Esperado</option>
+                <option value="valor_recebido">Ordenar por Valor Recebido</option>
+              </select>
+              <select id="sortDir">
+                <option value="asc" selected>Ascendente</option>
+                <option value="desc">Descendente</option>
+              </select>
+            </div>
+          </fieldset>
+
+          <fieldset style="border:1px solid #e5e7eb;border-radius:6px;padding:8px;">
+            <legend style="font-size:12px;color:#374151;">Cliente</legend>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <select id="fCliRegime">
+                <option value="">Regime Tributário (todos)</option>
+                <option value="simples nacional">Simples Nacional</option>
+                <option value="lucro real">Lucro Real</option>
+                <option value="lucro presumido">Lucro Presumido</option>
+                <option value="outro">Outro</option>
+              </select>
+              <select id="fCliTipoEmpresa">
+                <option value="">Tipo de Empresa (todos)</option>
+                <option value="comercio">Comércio</option>
+                <option value="servico">Serviço</option>
+                <option value="comercio e servico">Comércio e Serviço</option>
+                <option value="industria">Indústria</option>
+              </select>
+            </div>
+          </fieldset>
+
+          <div style="grid-column:1/-1;display:flex;gap:8px;">
+            <button id="applyFilters" class="btn btn-primary btn-prominent">🔎 Filtrar</button>
+            <button id="clearFilters" class="btn btn-outline">Limpar filtros</button>
+          </div>
+        </div>
+      </details>
+      <div style="display:flex;align-items:center;gap:8px;">
         <div id="totalsRec" class="totals-box totals-rec">
           <div class="t-label">Recebido / A Receber</div>
           <div class="t-values">R$ 0,00 / R$ 0,00</div>
@@ -588,8 +624,9 @@ export async function renderRecebimentos(app) {
       if (filters.status) opts.eq.status = filters.status;
       if (filters.tipo_recebimento) opts.eq.tipo_recebimento = filters.tipo_recebimento;
       if (filters.cliente_id) opts.eq.cliente_id = filters.cliente_id;
-      if (filters.de) opts.gte = { ...(opts.gte||{}), data_vencimento: filters.de };
-      if (filters.ate) opts.lte = { ...(opts.lte||{}), data_vencimento: filters.ate };
+      const dateColServer = filters.date_field || 'data_vencimento';
+      if (filters.de) opts.gte = { ...(opts.gte||{}), [dateColServer]: filters.de };
+      if (filters.ate) opts.lte = { ...(opts.lte||{}), [dateColServer]: filters.ate };
       opts.orderBy = { column: 'data_vencimento', ascending: true };
       opts.count = 'exact';
       opts.from = from; opts.to = to;
@@ -820,6 +857,48 @@ export async function renderRecebimentos(app) {
     filters.ate = document.getElementById('fAte').value || undefined;
     filters.date_field = document.getElementById('fDateField').value || 'data_vencimento';
     filters.onlyOverdue = document.getElementById('fOnlyOverdue').checked || undefined;
+    page = 1;
+    load();
+  });
+  const clearBtnRec = document.getElementById('clearFilters');
+  if (clearBtnRec) clearBtnRec.addEventListener('click', () => {
+    // período padrão (mês atual)
+    const now = new Date();
+    const firstDay = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+    const lastDayDate = new Date(now.getFullYear(), now.getMonth()+1, 0);
+    const lastDay = `${lastDayDate.getFullYear()}-${String(lastDayDate.getMonth()+1).padStart(2,'0')}-${String(lastDayDate.getDate()).padStart(2,'0')}`;
+
+    // reset campos
+    document.getElementById('fStatus').value = '';
+    document.getElementById('fTipo').value = '';
+    document.getElementById('fDe').value = firstDay;
+    document.getElementById('fAte').value = lastDay;
+    document.getElementById('fDateField').value = 'data_vencimento';
+    document.getElementById('fOnlyOverdue').checked = false;
+    document.getElementById('fCliNome').value = '';
+    document.getElementById('fDescricao').value = '';
+    document.getElementById('fCategoriaNome').value = '';
+    document.getElementById('fCliRegime').value = '';
+    document.getElementById('fCliTipoEmpresa').value = '';
+    document.getElementById('sortField').value = 'data_vencimento';
+    document.getElementById('sortDir').value = 'asc';
+
+    // reset variáveis
+    qCli = '';
+    qDesc = '';
+    qCat = '';
+    fRegime = '';
+    fTipoEmp = '';
+    sortField = 'data_vencimento';
+    sortDir = 'asc';
+
+    // reset filtros
+    filters.status = undefined;
+    filters.tipo_recebimento = undefined;
+    filters.de = firstDay;
+    filters.ate = lastDay;
+    filters.date_field = 'data_vencimento';
+    filters.onlyOverdue = undefined;
     page = 1;
     load();
   });
