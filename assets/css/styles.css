@@ -126,6 +126,11 @@ body {
 }
 .toast.show { display: block; }
 
+/* Indicador de progresso em modais */
+.progress-info { display:flex; align-items:center; gap:8px; font-size:13px; color: var(--muted); margin-bottom: 8px; }
+.progress-info .spinner { width:16px; height:16px; border:2px solid #334155; border-top-color: var(--primary); border-radius:50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .status-pill { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; }
 .status-pendente { background: #1E293B; color: #F8FAFC; border: 1px solid #334155; }
 .status-recebido { background: rgba(16,185,129,0.12); color: var(--success); border: 1px solid rgba(16,185,129,0.6); }

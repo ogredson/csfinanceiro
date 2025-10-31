@@ -185,6 +185,7 @@ async function openCreate() {
       if (nomeCli && !values.cliente_id) { showToast('Selecione um cliente válido da lista', 'error'); return; }
       if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
       if (nomeFor && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      if (values.tipo_recebimento === 'mensal' && !values.dia_recebimento) { showToast('Para tipo "mensal", informe o Dia do Recebimento.', 'error'); return; }
       // informação quando não há parcelamento
       if (values.tipo_recebimento === 'parcelado' && values.parcela_atual === 1 && values.total_parcelas === 1) {
         showToast('Parcela atual 1 de 1: crie um recebimento padrão (sem parcelamento).', 'info');
@@ -244,6 +245,7 @@ async function openEdit(row) {
       if (nomeCli && !values.cliente_id) { showToast('Selecione um cliente válido da lista', 'error'); return; }
       if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
       if (nomeFor && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      if (values.tipo_recebimento === 'mensal' && !values.dia_recebimento) { showToast('Para tipo "mensal", informe o Dia do Recebimento.', 'error'); return; }
       const { error } = await db.update('recebimentos', row.id, values);
       if (error) {
         showToast(error.message||'Erro ao atualizar', 'error');
@@ -499,7 +501,8 @@ export async function renderRecebimentos(app) {
           <div class="t-label">Recebido / A Receber</div>
           <div class="t-values">R$ 0,00 / R$ 0,00</div>
         </div>
-        <button id="newRec" class="btn btn-primary">Novo Recebimento</button>
+        <button id="newRec" class="btn btn-primary">Novo</button>
+        <button id="genRec" class="btn btn-success">Gerar Recebimentos</button>
         <button id="relatorio" class="btn btn-outline">Exportar CSV</button>
       </div>
     </div>
@@ -799,6 +802,7 @@ export async function renderRecebimentos(app) {
   document.getElementById('fCliRegime').addEventListener('change', (e) => { fRegime = (e.target.value||'').trim(); page = 1; load(); });
   document.getElementById('fCliTipoEmpresa').addEventListener('change', (e) => { fTipoEmp = (e.target.value||'').trim(); page = 1; load(); });
   document.getElementById('newRec').addEventListener('click', openCreate);
+  document.getElementById('genRec').addEventListener('click', openGenerateRecebimentos);
   document.getElementById('relatorio').addEventListener('click', () => {
     // gera CSV do resultado atual do grid
     try {
@@ -849,4 +853,173 @@ export async function renderRecebimentos(app) {
     }
   });
   await load();
+}
+
+function monthNamePT(m) {
+  const nomes = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+  return nomes[m-1] || '';
+}
+
+async function openGenerateRecebimentos() {
+  const lookups = await ensureLookups();
+  const now = new Date();
+  const anoAtual = now.getFullYear();
+  const mesAtual = now.getMonth() + 1;
+  const anos = [anoAtual-1, anoAtual, anoAtual+1];
+  const mesesOptions = Array.from({length:12}, (_,i)=>`<option value="${i+1}" ${i+1===mesAtual?'selected':''}>${monthNamePT(i+1)}</option>`).join('');
+  const content = `
+    <form id="genRecForm">
+      <div id="genBusy" class="progress-info" style="display:none;"><span class="spinner"></span><span id="genBusyText">Processando...</span></div>
+      <div class="form-row">
+        <div class="field sm"><label>Ano Base *</label>
+          <select id="ano_base">${anos.map(a=>`<option value="${a}" ${a===anoAtual?'selected':''}>${a}</option>`).join('')}</select>
+        </div>
+        <div class="field sm"><label>Mês Base</label>
+          <select id="mes_base">${mesesOptions}</select>
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:12px">
+        <div class="field sm"><label>Ano a Gerar *</label>
+          <select id="ano_gerar">${anos.map(a=>`<option value="${a}" ${a===anoAtual?'selected':''}>${a}</option>`).join('')}</select>
+        </div>
+        <div class="field sm"><label>Mês a Gerar *</label>
+          <select id="mes_gerar">${mesesOptions}</select>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="info" style="font-size:13px; color:#374151;">
+          <strong>Informação:</strong> Serão gerados apenas para clientes <strong>Ativo</strong> com recebimentos do tipo <strong>mensal</strong>. O <em>Dia do Recebimento</em> será tomado do registro-base do mês/ano selecionados (template). Se algum cliente não tiver <em>Dia do Recebimento</em> informado no registro-base, ele será ignorado e você será avisado. Todos serão criados como <strong>Pendente</strong>. Registros com status <em>cancelado</em> serão ignorados.
+        </div>
+      </div>
+    </form>
+  `;
+  const { modal, close } = createModal({ title: 'Selecionar Ano para Geração Recebimentos', content, actions: [
+    { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
+    { label: 'Gerar', className: 'btn btn-primary', onClick: async ({ close }) => {
+      // indicador visual de processamento
+      const showBusy = (text = 'Processando...') => {
+        const info = modal.querySelector('#genBusy'); const txt = modal.querySelector('#genBusyText');
+        if (info) { info.style.display = 'flex'; if (txt) txt.textContent = text; }
+        setLoading(modal, true);
+        modal.querySelector('footer')?.querySelectorAll('button')?.forEach(b => b.disabled = true);
+      };
+      const hideBusy = () => {
+        const info = modal.querySelector('#genBusy'); if (info) info.style.display = 'none';
+        setLoading(modal, false);
+        modal.querySelector('footer')?.querySelectorAll('button')?.forEach(b => b.disabled = false);
+      };
+      showBusy('Preparando geração...');
+      const anoBase = Number(modal.querySelector('#ano_base').value);
+      const mesBase = Number(modal.querySelector('#mes_base').value);
+      const anoGerar = Number(modal.querySelector('#ano_gerar').value);
+      const mesGerar = Number(modal.querySelector('#mes_gerar').value);
+      const mesesGerar = [mesGerar];
+      if (!mesGerar || mesGerar < 1 || mesGerar > 12) { showToast('Selecione o mês a gerar.', 'warning'); hideBusy(); return; }
+
+      // Clientes ativos
+      showBusy('Carregando clientes ativos...');
+      const { data: clientes } = await db.select('clientes', { select: 'id, nome, ativo' });
+      const ativos = (clientes||[]).filter(c => !!c.ativo);
+      const ativosIds = ativos.map(c => c.id);
+
+      // Base: recebimentos mensais não cancelados (inclui dia_recebimento)
+      showBusy('Lendo base mensal do mês/ano selecionados...');
+      const { data: baseRecs } = await db.select('recebimentos', { select: 'id, cliente_id, categoria_id, forma_pagamento_id, descricao, valor_esperado, status, tipo_recebimento, data_vencimento, observacoes, dia_recebimento', eq: { tipo_recebimento: 'mensal' } });
+      const baseValidos = (baseRecs||[]).filter(r => r.status !== 'cancelado' && ativosIds.includes(r.cliente_id));
+
+      // Templates: todos os registros do mês/ano base informado (gera para cada registro)
+      const templates = baseValidos.filter(r => {
+        const dv = r.data_vencimento || '';
+        const parts = dv.split('-').map(Number);
+        const y = parts[0]; const m = parts[1];
+        return y === anoBase && m === mesBase;
+      });
+
+      // Montar inserções e checar duplicidades
+      const toInsert = [];
+      const possibleDupes = [];
+      const missingDay = [];
+      for (const tpl of templates) {
+        const clienteId = tpl.cliente_id;
+        const catId = tpl.categoria_id; const formaId = tpl.forma_pagamento_id;
+        const valor = Number(tpl.valor_esperado || 0);
+        const desc = tpl.descricao || '';
+        const obs = tpl.observacoes || null;
+        for (const m of mesesGerar) {
+          const diaFixTpl = Number(tpl.dia_recebimento || 0);
+          if (!diaFixTpl || diaFixTpl < 1 || diaFixTpl > 31) { missingDay.push({ cliente_id: clienteId, month: m }); continue; }
+          const dv = `${anoGerar}-${String(m).padStart(2,'0')}-${String(diaFixTpl).padStart(2,'0')}`;
+          // checar duplicidade
+          const { data: exists } = await db.select('recebimentos', { select: 'id', eq: { cliente_id: clienteId, categoria_id: catId, data_vencimento: dv, valor_esperado: valor } });
+          if (exists && exists.length) {
+            possibleDupes.push({ cliente_id: clienteId, data_vencimento: dv, valor_esperado: valor, categoria_id: catId, descricao: desc });
+          }
+          toInsert.push({
+            descricao: desc,
+            cliente_id: clienteId,
+            categoria_id: catId,
+            forma_pagamento_id: formaId,
+            valor_esperado: valor,
+            valor_recebido: 0,
+            data_emissao: formatDate(),
+            data_vencimento: dv,
+            data_recebimento: null,
+            dia_recebimento: diaFixTpl,
+            status: 'pendente',
+            tipo_recebimento: 'mensal',
+            parcela_atual: 1,
+            total_parcelas: 1,
+            observacoes: obs,
+          });
+        }
+      }
+
+      // Antes: exibir clientes ignorados por falta de dia
+      const missClientIds = Array.from(new Set(missingDay.map(m => m.cliente_id)));
+      const missListHTML = missClientIds.map(id => `<li>${lookups.mapCli.get(id) || '—'}</li>`).join('') || '<li>Nenhum</li>';
+      async function goNext() {
+        if (possibleDupes.length) {
+          const { modal: confirmModal, close: closeConfirm } = createModal({
+            title: 'Possível Duplicidade',
+            content: `<div class="card"><p>Encontramos ${possibleDupes.length} registro(s) que já existem com o mesmo cliente, vencimento, valor e categoria.</p><p>Deseja criar mesmo assim ou pular os duplicados?</p></div>`,
+            actions: [
+              { label: 'Pular duplicados', className: 'btn btn-outline', onClick: ({ close }) => { close(); closeConfirm(); proceedInsert(true); } },
+              { label: 'Criar mesmo assim', className: 'btn btn-danger', onClick: ({ close }) => { close(); closeConfirm(); proceedInsert(false); } },
+            ]
+          });
+        } else {
+          await proceedInsert(true);
+        }
+      }
+
+      hideBusy();
+      if (missClientIds.length) {
+        const { modal: missModal, close: closeMiss } = createModal({
+          title: 'Clientes ignorados (sem Dia do Recebimento no template)',
+          content: `<div class="card"><p>Os seguintes clientes serão ignorados na geração por não possuírem <em>Dia do Recebimento</em> informado no registro-base selecionado:</p><ul style="margin-top:8px;">${missListHTML}</ul></div>`,
+          actions: [
+            { label: 'Cancelar', className: 'btn btn-outline', onClick: ({ close }) => { close(); closeMiss(); } },
+            { label: 'Continuar', className: 'btn btn-primary', onClick: ({ close }) => { close(); closeMiss(); goNext(); } },
+          ]
+        });
+      } else {
+        await goNext();
+      }
+
+      async function proceedInsert(skipDupes) {
+        showBusy('Inserindo registros...');
+        const finalInserts = skipDupes ? toInsert.filter(ins => !possibleDupes.some(d => d.cliente_id===ins.cliente_id && d.categoria_id===ins.categoria_id && d.data_vencimento===ins.data_vencimento && d.valor_esperado===ins.valor_esperado)) : toInsert;
+        if (!finalInserts.length) { showToast('Nada para gerar no período escolhido', 'warning'); hideBusy(); return; }
+        const { error } = await db.insert('recebimentos', finalInserts);
+        if (error) { showToast(error.message||'Erro ao gerar recebimentos', 'error'); hideBusy(); return; }
+        const missCount = missingDay.length;
+        showToast(`Gerados ${finalInserts.length} recebimento(s). Ignorados por falta de dia: ${missCount}.`, 'success');
+        hideBusy();
+        close();
+        window.location.hash = '#/recebimentos';
+      }
+    }}
+  ]});
+
+  // Sem opções de intervalo: geração usa mês/ano selecionados explicitamente
 }

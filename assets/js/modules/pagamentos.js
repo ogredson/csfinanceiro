@@ -225,6 +225,193 @@ async function relatorioDespesas(rows) {
   showToast(`Despesas pagas (visíveis): ${formatCurrency(total)}`, 'info');
 }
 
+function monthNamePT(m) {
+  const names = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  return names[m - 1] || '';
+}
+
+async function openGeneratePagamentos() {
+  const lookups = await ensureLookups();
+  const now = new Date();
+  const anoAtual = now.getFullYear();
+  const mesAtual = now.getMonth() + 1;
+  const anos = [anoAtual-1, anoAtual, anoAtual+1];
+  const mesesOptions = Array.from({length:12}, (_,i)=>`<option value="${i+1}" ${i+1===mesAtual?'selected':''}>${monthNamePT(i+1)}</option>`).join('');
+  const content = `
+    <form id="genPagForm">
+      <div class="form-row">
+        <div class="field sm"><label>Ano Base *</label>
+          <select id="ano_base">${anos.map(a=>`<option value="${a}" ${a===anoAtual?'selected':''}>${a}</option>`).join('')}</select>
+        </div>
+        <div class="field sm"><label>Mês Base</label>
+          <select id="mes_base">${mesesOptions}</select>
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:12px">
+        <div class="field sm"><label>Ano a Gerar *</label>
+          <select id="ano_gerar">${anos.map(a=>`<option value="${a}" ${a===anoAtual?'selected':''}>${a}</option>`).join('')}</select>
+        </div>
+        <div class="field sm"><label>Mês a Gerar *</label>
+          <select id="mes_gerar">${mesesOptions}</select>
+        </div>
+      </div>
+       <div class="card" style="margin-top:12px">
+         <div class="info" style="font-size:13px; color:#374151;">
+           <strong>Informação:</strong> Serão gerados apenas para fornecedores <strong>Ativo</strong> com pagamentos do tipo <strong>fixo</strong>. O <em>Dia do Pagamento</em> será tomado do registro-base do mês/ano selecionados (template). Se algum fornecedor não tiver <em>Dia do Pagamento</em> informado no registro-base, ele será ignorado e você será avisado. Todos serão criados como <strong>Pendente</strong>. Registros com status <em>cancelado</em> serão ignorados.
+         </div>
+       </div>
+       <div id="genBusy" class="progress-info" style="display:none;">
+         <div class="spinner"></div>
+         <span>Processando...</span>
+       </div>
+    </form>
+  `;
+  
+  const { modal, close } = createModal({ title: 'Selecionar Ano para Geração Pagamentos', content, actions: [
+    { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
+    { label: 'Gerar', className: 'btn btn-primary', onClick: async ({ close }) => {
+      const anoBase = Number(modal.querySelector('#ano_base').value);
+      const mesBase = Number(modal.querySelector('#mes_base').value);
+      const anoGerar = Number(modal.querySelector('#ano_gerar').value);
+      const mesGerar = Number(modal.querySelector('#mes_gerar').value);
+      
+      if (!mesGerar || mesGerar < 1 || mesGerar > 12) { 
+        showToast('Selecione o mês a gerar.', 'warning'); 
+        return; 
+      }
+
+      const showBusy = (text = 'Processando...') => {
+        const busyEl = modal.querySelector('#genBusy');
+        const textEl = busyEl.querySelector('span');
+        if (textEl) textEl.textContent = text;
+        busyEl.style.display = 'flex';
+        setLoading(modal, true);
+        modal.querySelectorAll('.modal-actions button').forEach(btn => btn.disabled = true);
+      };
+      
+      const hideBusy = () => {
+        const busyEl = modal.querySelector('#genBusy');
+        busyEl.style.display = 'none';
+        setLoading(modal, false);
+        modal.querySelectorAll('.modal-actions button').forEach(btn => btn.disabled = false);
+      };
+
+      try {
+        showBusy('Preparando geração...');
+
+        // Fornecedores ativos
+        showBusy('Carregando fornecedores ativos...');
+        const { data: fornecedores } = await db.select('fornecedores', { select: 'id, nome, ativo' });
+        const ativos = (fornecedores||[]).filter(f => !!f.ativo);
+        const ativosIds = ativos.map(f => f.id);
+
+        // Base: pagamentos mensais não cancelados (inclui dia_pagamento)
+        showBusy('Carregando base mensal...');
+         const { data: basePags } = await db.select('pagamentos', { 
+           select: 'id, fornecedor_id, categoria_id, forma_pagamento_id, descricao, valor_esperado, status, tipo_pagamento, data_vencimento, observacoes, dia_pagamento' 
+         });
+         const baseValidos = (basePags||[]).filter(p => p.status !== 'cancelado' && ativosIds.includes(p.fornecedor_id) && p.tipo_pagamento === 'fixo');
+
+        // Templates: todos os registros do mês/ano base informado (gera para cada registro)
+        const templates = baseValidos.filter(p => {
+          const dv = p.data_vencimento || '';
+          const parts = dv.split('-').map(Number);
+          const y = parts[0]; const m = parts[1];
+          return y === anoBase && m === mesBase;
+        });
+
+        // Montar inserções e checar duplicidades
+        showBusy('Processando templates...');
+        const toInsert = [];
+        const possibleDupes = [];
+        const missingDay = [];
+        
+        for (const tpl of templates) {
+          const fornecedorId = tpl.fornecedor_id;
+          const catId = tpl.categoria_id; 
+          const formaId = tpl.forma_pagamento_id;
+          const valor = Number(tpl.valor_esperado || 0);
+          const desc = tpl.descricao || '';
+          const obs = tpl.observacoes || null;
+          const diaPag = tpl.dia_pagamento;
+          
+          if (!diaPag || diaPag < 1 || diaPag > 31) {
+            const fornecedor = ativos.find(f => f.id === fornecedorId);
+            missingDay.push(fornecedor?.nome || `ID ${fornecedorId}`);
+            continue;
+          }
+          
+          const dataVenc = `${anoGerar}-${String(mesGerar).padStart(2,'0')}-${String(diaPag).padStart(2,'0')}`;
+          
+          // Verificar duplicidade
+          const { data: existing } = await db.select('pagamentos', {
+            select: 'id',
+            eq: { fornecedor_id: fornecedorId, data_vencimento: dataVenc, status: 'pendente' }
+          });
+          
+          if (existing && existing.length > 0) {
+            const fornecedor = ativos.find(f => f.id === fornecedorId);
+            possibleDupes.push(`${fornecedor?.nome || `ID ${fornecedorId}`} (${diaPag}/${mesGerar})`);
+            continue;
+          }
+          
+           toInsert.push({
+             fornecedor_id: fornecedorId,
+             categoria_id: catId,
+             forma_pagamento_id: formaId,
+             descricao: desc,
+             valor_esperado: valor,
+             valor_pago: 0,
+             data_emissao: formatDate(),
+             data_vencimento: dataVenc,
+             data_pagamento: null,
+             status: 'pendente',
+             tipo_pagamento: 'fixo',
+             parcela_atual: 1,
+             total_parcelas: 1,
+             observacoes: obs,
+           });
+        }
+
+        hideBusy();
+
+        if (missingDay.length > 0) {
+          const lista = missingDay.slice(0, 10).join(', ') + (missingDay.length > 10 ? ` e mais ${missingDay.length - 10}` : '');
+          showToast(`Fornecedores ignorados (sem dia do pagamento): ${lista}`, 'warning');
+        }
+        
+        if (possibleDupes.length > 0) {
+          const lista = possibleDupes.slice(0, 5).join(', ') + (possibleDupes.length > 5 ? ` e mais ${possibleDupes.length - 5}` : '');
+          showToast(`Possíveis duplicatas ignoradas: ${lista}`, 'info');
+        }
+        
+        if (toInsert.length === 0) {
+          showToast('Nenhum pagamento foi gerado.', 'info');
+          return;
+        }
+
+        showBusy('Inserindo pagamentos...');
+        const { error } = await db.insert('pagamentos', toInsert);
+        hideBusy();
+        
+        if (error) {
+          showToast(error.message || 'Erro ao gerar pagamentos', 'error');
+          return;
+        }
+        
+        showToast(`${toInsert.length} pagamento(s) gerado(s) com sucesso!`, 'success');
+        close();
+        window.location.hash = '#/pagamentos';
+        
+      } catch (err) {
+        hideBusy();
+        console.error('Erro na geração:', err);
+        showToast('Erro inesperado na geração de pagamentos', 'error');
+      }
+    }}
+  ] });
+}
+
 export async function renderPagamentos(app) {
   const lookups = await ensureLookups();
   app.innerHTML = `
@@ -265,6 +452,7 @@ export async function renderPagamentos(app) {
           <div class="t-values">R$ 0,00 / R$ 0,00</div>
         </div>
         <button id="newPay" class="btn btn-primary">Novo</button>
+        <button id="gerarPagamentos" class="btn btn-success">Gerar Pagamentos</button>
         <button id="relatorioDespesas" class="btn btn-outline">Relatório de despesas</button>
       </div>
     </div>
@@ -552,6 +740,7 @@ export async function renderPagamentos(app) {
   document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; page = 1; load(); });
   document.getElementById('sortDir').addEventListener('change', (e) => { sortDir = e.target.value; page = 1; load(); });
   document.getElementById('newPay').addEventListener('click', openCreate);
+  document.getElementById('gerarPagamentos').addEventListener('click', openGeneratePagamentos);
   document.getElementById('relatorioDespesas').addEventListener('click', () => {
     try {
       if (!lastExportRows || !lastExportRows.length) {
