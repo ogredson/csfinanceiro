@@ -1,6 +1,6 @@
 import { db } from '../supabaseClient.js';
 import { renderLineChart, renderPieChart, renderBarChart, renderAreaChart } from '../components/Charts.js';
-import { formatCurrency, sum, showToast, formatDate } from '../utils.js';
+import { formatCurrency, sum, showToast, formatDate, exportToCSV } from '../utils.js';
 
 async function fluxoCaixaComparativo(startDateStr, endDateStr) {
   const rec = await db.select('recebimentos', { select: 'valor_recebido, valor_esperado, status, data_vencimento, data_recebimento' });
@@ -551,6 +551,21 @@ export async function renderRelatorios(app) {
         </div>
       </div>
 
+      <div class="card area" data-area-id="participacao">
+        <div class="toolbar" style="justify-content:space-between;">
+          <h3>Participação por Cliente</h3>
+          <button class="btn btn-outline" data-toggle="participacao">Mostrar/Ocultar</button>
+        </div>
+        <div class="area-body" id="areaBody_participacao" style="display:none;">
+          <div class="muted" style="margin-bottom:8px;">Mensalidade e % de participação no período; classes por pagamento e faturamento.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button id="btnParticipacao" class="btn btn-outline">Gerar Participação por Cliente</button>
+            <button id="btnParticipacaoCSV" class="btn btn-outline">Exportar CSV</button>
+          </div>
+          <div id="participacaoResult" class="card" style="margin-top:10px;"></div>
+        </div>
+      </div>
+
       <div class="card area" data-area-id="extras">
         <div class="toolbar" style="justify-content:space-between;">
           <h3>Relatórios adicionais</h3>
@@ -594,7 +609,7 @@ export async function renderRelatorios(app) {
   const lsKey = 'REL_SECTIONS_OPEN';
   const openSet = new Set(JSON.parse(localStorage.getItem(lsKey) || '[]'));
   function applyOpenState() {
-    ['calendarios','fluxo','extras'].forEach(id => {
+    ['calendarios','fluxo','participacao','extras'].forEach(id => {
       const body = document.getElementById(`areaBody_${id}`);
       if (!body) return;
       body.style.display = openSet.has(id) ? 'block' : 'none';
@@ -644,6 +659,28 @@ export async function renderRelatorios(app) {
     const tipoRelatorio = document.getElementById('tipoRelatorio').value;
     window._campoDataRelatorios = document.getElementById('campoData').value;
     try { await gerarFluxoCaixaPorCategoriasPDF(dtInicioVal, dtFimVal, saldoInicial, tipoRelatorio); } catch (e) { console.error(e); showToast('Falha ao gerar fluxo por categorias em PDF', 'error'); }
+  });
+
+  // Participação por Cliente – eventos
+  const btnPart = document.getElementById('btnParticipacao');
+  const btnPartCSV = document.getElementById('btnParticipacaoCSV');
+  const resultEl = document.getElementById('participacaoResult');
+  async function gerarParticipacaoUI() {
+    const startStr = document.getElementById('dtInicio').value;
+    const endStr = document.getElementById('dtFim').value;
+    window._campoDataRelatorios = document.getElementById('campoData').value;
+    try {
+      const dados = await calcularParticipacaoPorCliente(startStr, endStr);
+      renderParticipacaoTabela(resultEl, dados);
+      window._lastParticipacaoRows = dados?.rowsCSV || [];
+      showToast('Participação por Cliente gerada', 'success');
+    } catch (e) { console.error(e); showToast('Falha ao gerar Participação por Cliente', 'error'); }
+  }
+  if (btnPart) btnPart.addEventListener('click', gerarParticipacaoUI);
+  if (btnPartCSV) btnPartCSV.addEventListener('click', () => {
+    const rows = window._lastParticipacaoRows || [];
+    if (!rows.length) { showToast('Gere a participação antes de exportar', 'warning'); return; }
+    exportToCSV(`participacao_por_cliente_${document.getElementById('dtInicio').value}_a_${document.getElementById('dtFim').value}.csv`, rows);
   });
 }
 
@@ -1485,4 +1522,125 @@ async function gerarFluxoCaixaPorCategoriasPDF(startStr, endStr, saldoInicial, t
   const fname = `fluxo-categorias-sintetico_${startStr}_a_${endStr}.pdf`;
   doc.save(fname);
   showToast('Fluxo por categorias (sintético) gerado em PDF', 'success');
+}
+
+// Participação por Cliente – cálculo e renderização
+function parseDateStr(s) { if (!s) return null; const [y,m,d] = String(s).split('-').map(Number); return new Date(y, (m||1)-1, (d||1)); }
+function daysBetween(aStr, bStr) { const a = parseDateStr(aStr); const b = parseDateStr(bStr); if (!a || !b) return 0; const ms = a.getTime() - b.getTime(); return Math.round(ms / 86400000); }
+function classifyPagamentoForClient(recs, todayStr) {
+  const delays = [];
+  (recs||[]).forEach(r => {
+    const venc = r.data_vencimento;
+    const recb = r.data_recebimento;
+    if (recb) {
+      const d = daysBetween(recb, venc);
+      delays.push(Math.max(0, d));
+    } else if ((r.status === 'pendente') && venc && daysBetween(todayStr, venc) > 0) {
+      // atrasado até hoje
+      delays.push(daysBetween(todayStr, venc));
+    }
+  });
+  const maxDelay = delays.length ? Math.max(...delays) : 0;
+  if (maxDelay > 30) return 'D';
+  if (maxDelay >= 11) return 'C';
+  if (maxDelay >= 1) return 'B';
+  return 'A';
+}
+function quantiles(values) {
+  const arr = [...values].filter(v => Number.isFinite(v)).sort((a,b)=>a-b);
+  const qAt = (p) => { if (!arr.length) return 0; const idx = (arr.length - 1) * p; const lo = Math.floor(idx); const hi = Math.ceil(idx); const w = idx - lo; return (arr[lo] || 0) * (1 - w) + (arr[hi] || 0) * w; };
+  return { q1: qAt(0.25), q2: qAt(0.50), q3: qAt(0.75) };
+}
+function classifyFaturamento(mensalidade, qs) {
+  if (mensalidade >= (qs.q3 || 0)) return 'A';
+  if (mensalidade >= (qs.q2 || 0)) return 'B';
+  if (mensalidade >= (qs.q1 || 0)) return 'C';
+  return 'D';
+}
+async function calcularParticipacaoPorCliente(startStr, endStr) {
+  const campoSel = window._campoDataRelatorios || 'data_vencimento';
+  const recDateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
+  const { data: recebimentos } = await db.select('recebimentos', { select: 'cliente_id, valor_esperado, valor_recebido, status, data_vencimento, data_recebimento, tipo_recebimento' });
+  const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
+  const inRange = (s) => { const dt = parseDateStr(s); if (!dt) return false; const a = parseDateStr(startStr); const b = parseDateStr(endStr); return dt >= a && dt <= b; };
+
+  const byClient = new Map();
+  const recsByClient = new Map();
+  (recebimentos||[]).filter(r => r.tipo_recebimento === 'mensal' && r.status !== 'cancelado').forEach(r => {
+    if (!inRange(r[recDateField])) return;
+    const valor = (campoSel === 'data_pagamento') ? (r.status === 'recebido' ? Number(r.valor_recebido||0) : 0) : Number(r.valor_esperado||0);
+    byClient.set(r.cliente_id, (byClient.get(r.cliente_id)||0) + valor);
+    const arr = recsByClient.get(r.cliente_id) || []; arr.push(r); recsByClient.set(r.cliente_id, arr);
+  });
+
+  const rows = Array.from(byClient.entries()).map(([cid, mensalidade]) => {
+    const nome = (clientes||[]).find(c => c.id === cid)?.nome || '—';
+    return { cliente_id: cid, cliente_nome: nome, mensalidade };
+  }).sort((a,b)=>b.mensalidade - a.mensalidade);
+
+  const total = sum(rows.map(r => r.mensalidade));
+  const media = rows.length ? total / rows.length : 0;
+  const qs = quantiles(rows.map(r => r.mensalidade));
+  const todayStr = formatDate(new Date());
+
+  const enriched = rows.map(r => {
+    const recsCli = recsByClient.get(r.cliente_id) || [];
+    const classePag = classifyPagamentoForClient(recsCli, todayStr);
+    const classeFat = classifyFaturamento(r.mensalidade, qs);
+    const part = total ? (r.mensalidade / total) : 0;
+    return { ...r, classe_pagamento: classePag, classe_faturamento: classeFat, participacao: part };
+  });
+
+  const rowsCSV = enriched.map(r => ({
+    Cliente: r.cliente_nome,
+    'Classe Faturamento': r.classe_faturamento,
+    'Classe Pagamento': r.classe_pagamento,
+    Mensalidade: r.mensalidade,
+    '%Participacao': (r.participacao * 100).toFixed(2) + '%'
+  }));
+
+  return { total, media, rows: enriched, rowsCSV, qs };
+}
+function renderParticipacaoTabela(container, dados) {
+  if (!container) return;
+  const { total, media, rows, qs } = dados || {};
+  const critFatA = formatCurrency((qs?.q3) || 0);
+  const critFatB = formatCurrency((qs?.q2) || 0);
+  const critFatC = formatCurrency((qs?.q1) || 0);
+  const criteria = `
+    <div class="muted" style="font-size:12px;padding:2px 0 8px 0;">
+      Critérios: Pagamento A=0d; B=1–10d; C=11–30d; D=>30d | Faturamento A ≥ ${critFatA}; B ≥ ${critFatB}; C ≥ ${critFatC}; D < ${critFatC}
+    </div>
+  `;
+  const header = `
+    <div style="display:flex;gap:24px;align-items:center;justify-content:flex-start;padding:8px 0;">
+      <div><strong>Total:</strong> ${formatCurrency(total || 0)}</div>
+      <div><strong>Valor médio:</strong> ${formatCurrency(media || 0)}</div>
+    </div>
+  `;
+  const table = `
+    <table class="table" style="width:100%;">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Classe Faturamento</th>
+          <th>Classe Pagamento</th>
+          <th class="right">Mensalidade</th>
+          <th class="right">%Participacao</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${(rows||[]).map(r => `
+          <tr>
+            <td>${(r.cliente_nome||'—')}</td>
+            <td>${r.classe_faturamento}</td>
+            <td>${r.classe_pagamento}</td>
+            <td class="right">${formatCurrency(r.mensalidade)}</td>
+            <td class="right">${(r.participacao * 100).toFixed(2)}%</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.innerHTML = criteria + header + table;
 }
