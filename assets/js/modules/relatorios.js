@@ -1618,6 +1618,15 @@ function renderParticipacaoTabela(container, dados) {
       <div><strong>Valor médio:</strong> ${formatCurrency(media || 0)}</div>
     </div>
   `;
+  const labelPg = (l) => {
+    switch (String(l || '')) {
+      case 'A': return '(Bons Pagadores)';
+      case 'B': return '(Pequeno Atraso)';
+      case 'C': return '(Atraso Moderado)';
+      case 'D': return '(Inadimplentes Crônicos)';
+      default: return '';
+    }
+  };
   const table = `
     <table class="table" style="width:100%;">
       <thead>
@@ -1634,7 +1643,7 @@ function renderParticipacaoTabela(container, dados) {
           <tr>
             <td>${(r.cliente_nome||'—')}</td>
             <td>${r.classe_faturamento}</td>
-            <td>${r.classe_pagamento}</td>
+            <td>${r.classe_pagamento} ${labelPg(r.classe_pagamento)}</td>
             <td class="right">${formatCurrency(r.mensalidade)}</td>
             <td class="right">${(r.participacao * 100).toFixed(2)}%</td>
           </tr>

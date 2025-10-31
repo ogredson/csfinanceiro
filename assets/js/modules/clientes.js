@@ -1,10 +1,10 @@
 import { db } from '../supabaseClient.js';
-import { showToast, formatCurrency } from '../utils.js';
+import { showToast, formatCurrency, sanitizeText } from '../utils.js';
 import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
 async function fetchClientes() {
-  const { data, error } = await db.select('clientes', { select: 'id, nome, email, telefone, documento, tipo_empresa, regime_tributario, observacao, ativo, created_at', orderBy: { column: 'created_at', ascending: false } });
+  const { data, error } = await db.select('clientes', { select: 'id, nome, email, telefone, documento, grupo_cliente, tipo_empresa, regime_tributario, observacao, ativo, created_at', orderBy: { column: 'created_at', ascending: false } });
   if (error) { showToast(error.message || 'Erro ao carregar clientes', 'error'); return []; }
   return data || [];
 }
@@ -17,6 +17,7 @@ function clienteForm(initial = {}) {
         <div class="field"><label>Email</label><input type="email" id="email" value="${initial.email||''}"/></div>
         <div class="field"><label>Telefone</label><input id="telefone" value="${initial.telefone||''}"/></div>
         <div class="field"><label>Documento</label><input id="documento" value="${initial.documento||''}"/></div>
+        <div class="field"><label>Grupo do Cliente</label><input id="grupo_cliente" value="${initial.grupo_cliente||''}" placeholder="Ex.: VIP, Atacado, Revenda"/></div>
         <div class="field"><label>Tipo de Empresa</label>
           <select id="tipo_empresa">
             <option value="comercio" ${initial.tipo_empresa==='comercio'?'selected':''}>Comércio</option>
@@ -48,6 +49,7 @@ function getCliFormValues(modal) {
     email: getVal('email') || null,
     telefone: getVal('telefone') || null,
     documento: getVal('documento') || null,
+    grupo_cliente: getVal('grupo_cliente') || null,
     tipo_empresa: getVal('tipo_empresa') || null,
     regime_tributario: getVal('regime_tributario') || null,
     observacao: getVal('observacao') || null,
@@ -102,6 +104,9 @@ export async function renderClientes(app) {
     <div class="toolbar">
       <div class="filters">
         <input id="qCli" placeholder="Pesquisar (nome, email, telefone, documento)" />
+        <select id="fGrupoCli" style="margin-left:8px">
+          <option value="">Todos os grupos</option>
+        </select>
         <button id="applySearchCli" class="btn btn-primary btn-prominent">🔎 Pesquisar</button>
       </div>
       <div><button id="newCli" class="btn btn-primary">Novo Cliente</button></div>
@@ -111,14 +116,21 @@ export async function renderClientes(app) {
   const perPage = 20;
   let page = 1;
   let q = '';
+  let fGrupo = '';
   let allRows = [];
 
   function applyFilter(rows = []) {
-    if (!q) return rows;
-    const term = q.toLowerCase();
-    return rows.filter(r => [r.nome, r.email, r.telefone, r.documento, r.tipo_empresa, r.regime_tributario]
-      .some(v => (v || '').toString().toLowerCase().includes(term))
-    );
+    // texto livre
+    const base = (() => {
+      if (!q) return rows;
+      const term = q.toLowerCase();
+      return rows.filter(r => [r.nome, r.email, r.telefone, r.documento, r.grupo_cliente, r.tipo_empresa, r.regime_tributario]
+        .some(v => (v || '').toString().toLowerCase().includes(term))
+      );
+    })();
+    // filtro por grupo
+    if (!fGrupo) return base;
+    return base.filter(r => (r.grupo_cliente || '') === fGrupo);
   }
 
   function renderList() {
@@ -134,6 +146,7 @@ export async function renderClientes(app) {
         { key: 'email', label: 'Email' },
         { key: 'telefone', label: 'Telefone' },
         { key: 'documento', label: 'Documento' },
+        { key: 'grupo_cliente', label: 'Grupo' },
         { key: 'tipo_empresa', label: 'Tipo de Empresa' },
         { key: 'regime_tributario', label: 'Regime Tributário' },
         { key: 'ativo', label: 'Status', render: v => `<span class="status-pill ${v?'status-recebido':'status-cancelado'}">${v?'Ativo':'Inativo'}</span>` },
@@ -143,7 +156,22 @@ export async function renderClientes(app) {
       perPage,
       actions: [
         { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r) },
-        { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const { error } = await db.remove('clientes', r.id); if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); await load(); } } },
+        { label: 'Excluir', className: 'btn btn-danger', onClick: async r => {
+          const nome = sanitizeText(r.nome || '');
+          const { modal, close } = createModal({
+            title: 'Confirmar exclusão',
+            content: `<div class="card"><p>Deseja realmente excluir o cliente <strong>${nome}</strong>? Esta ação não pode ser desfeita.</p></div>`,
+            actions: [
+              { label: 'Cancelar', className: 'btn btn-outline', onClick: ({ close }) => close() },
+              { label: 'Excluir', className: 'btn btn-danger', onClick: async ({ close }) => {
+                const { error } = await db.remove('clientes', r.id);
+                if (error) showToast(error.message||'Erro ao excluir','error');
+                else { showToast('Cliente excluído','success'); await load(); }
+                close();
+              } }
+            ]
+          });
+        } },
         { label: 'Histórico', className: 'btn btn-outline', onClick: r => historicoRecebimentos(r.id) },
       ],
     });
@@ -171,6 +199,16 @@ export async function renderClientes(app) {
 
   async function load() {
     allRows = await fetchClientes();
+    // popular opções do filtro de grupo
+    const sel = document.getElementById('fGrupoCli');
+    if (sel) {
+      const uniq = Array.from(new Set((allRows||[]).map(r => r.grupo_cliente).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+      // mantém primeira opção e recria demais
+      sel.innerHTML = `<option value="">Todos os grupos</option>` + uniq.map(g => `<option value="${g}">${g}</option>`).join('');
+      // se o grupo selecionado não existe mais, limpa
+      const exists = uniq.includes(fGrupo);
+      if (!exists) fGrupo = '';
+    }
     page = 1; // reset ao carregar
     renderList();
   }
@@ -178,5 +216,6 @@ export async function renderClientes(app) {
   document.getElementById('newCli').addEventListener('click', openCreate);
   document.getElementById('applySearchCli').addEventListener('click', async () => { q = document.getElementById('qCli').value.trim(); page = 1; await load(); });
   document.getElementById('qCli').addEventListener('input', (e) => { q = e.target.value.trim(); page = 1; renderList(); });
+  document.getElementById('fGrupoCli').addEventListener('change', (e) => { fGrupo = e.target.value; page = 1; renderList(); });
   await load();
 }

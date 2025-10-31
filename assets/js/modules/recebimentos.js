@@ -494,6 +494,7 @@ export async function renderRecebimentos(app) {
               <input id="fDescricao" placeholder="Descrição (texto)" />
               <input id="fCategoriaNome" list="fCatOptions" placeholder="Categoria (nome)" />
               <datalist id="fCatOptions">${(lookups.categorias||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
+              <input id="fCliGrupo" placeholder="Grupo (texto)" />
             </div>
           </fieldset>
 
@@ -577,6 +578,7 @@ export async function renderRecebimentos(app) {
   let qCli = '';
   let qCat = '';
   let qDesc = '';
+  let qGrupo = '';
   let fRegime = '';
   let fTipoEmp = '';
   const perPage = 20;
@@ -593,7 +595,7 @@ export async function renderRecebimentos(app) {
     const idsCat = Array.from(new Set(rows.map(r => r.categoria_id).filter(Boolean)));
     const idsForma = Array.from(new Set(rows.map(r => r.forma_pagamento_id).filter(Boolean)));
     const [cliRes, catRes, formaRes] = await Promise.all([
-      idsCli.length ? db.select('clientes', { select: 'id, nome, regime_tributario, tipo_empresa, observacao', in: { id: idsCli } }) : Promise.resolve({ data: [] }),
+      idsCli.length ? db.select('clientes', { select: 'id, nome, regime_tributario, tipo_empresa, observacao, grupo_cliente', in: { id: idsCli } }) : Promise.resolve({ data: [] }),
       idsCat.length ? db.select('categorias', { select: 'id, nome', in: { id: idsCat } }) : Promise.resolve({ data: [] }),
       idsForma.length ? db.select('formas_pagamento', { select: 'id, nome', in: { id: idsForma } }) : Promise.resolve({ data: [] }),
     ]);
@@ -602,9 +604,10 @@ export async function renderRecebimentos(app) {
     const mapCliRegime = new Map(cliRows.map(c => [c.id, c.regime_tributario || '']));
     const mapCliTipo = new Map(cliRows.map(c => [c.id, c.tipo_empresa || '']));
     const mapCliObs = new Map(cliRows.map(c => [c.id, (c.observacao || '')]));
+    const mapCliGrupo = new Map(cliRows.map(c => [c.id, (c.grupo_cliente || '')]));
     const mapCat = new Map((catRes.data || []).map(c => [c.id, c.nome]));
     const mapForma = new Map((formaRes.data || []).map(f => [f.id, f.nome]));
-    return { mapCli, mapCliRegime, mapCliTipo, mapCliObs, mapCat, mapForma };
+    return { mapCli, mapCliRegime, mapCliTipo, mapCliObs, mapCliGrupo, mapCat, mapForma };
   }
 
   async function load() {
@@ -612,7 +615,7 @@ export async function renderRecebimentos(app) {
     const myVersion = ++loadVersion;
     setLoading(cont, true);
     // remove limpeza imediata para evitar race conditions
-    const serverMode = !qCli && !qCat && !qDesc && !fRegime && !fTipoEmp;
+    const serverMode = !qCli && !qCat && !qDesc && !qGrupo && !fRegime && !fTipoEmp;
     let rows = [];
     let totalPages = 1;
   
@@ -650,7 +653,7 @@ export async function renderRecebimentos(app) {
     if (myVersion !== loadVersion) return;
   
     currentRows = rows;
-    const { mapCli, mapCliRegime, mapCliTipo, mapCliObs, mapCat, mapForma } = await buildMaps(rows);
+    const { mapCli, mapCliRegime, mapCliTipo, mapCliObs, mapCliGrupo, mapCat, mapForma } = await buildMaps(rows);
   
     // checa novamente após lookups (também assíncrono)
     if (myVersion !== loadVersion) return;
@@ -661,6 +664,7 @@ export async function renderRecebimentos(app) {
       cliente_regime_tributario: mapCliRegime.get(r.cliente_id) || '',
       cliente_tipo_empresa: mapCliTipo.get(r.cliente_id) || '',
       cliente_observacao: mapCliObs.get(r.cliente_id) || '',
+      cliente_grupo: mapCliGrupo.get(r.cliente_id) || '',
       categoria_nome: mapCat.get(r.categoria_id) || '—',
       forma_pagamento_nome: mapForma.get(r.forma_pagamento_id) || '—',
     }));
@@ -723,7 +727,7 @@ export async function renderRecebimentos(app) {
       const cls = `days-text${highlight ? ' days-highlight' : ''}`;
       return `<span class="${cls}" style="${style}">${text}</span>`;
     }
-    const baseFiltered = serverMode ? enriched : enriched.filter(r => ilike(r.cliente_nome, qCli) && ilike(r.descricao, qDesc) && ilike(r.categoria_nome, qCat));
+    const baseFiltered = serverMode ? enriched : enriched.filter(r => ilike(r.cliente_nome, qCli) && ilike(r.descricao, qDesc) && ilike(r.categoria_nome, qCat) && ilike(r.cliente_grupo, qGrupo));
     const regimeFiltered = baseFiltered.filter(r => !fRegime || (r.cliente_regime_tributario || '') === fRegime);
     const tipoEmpFiltered = regimeFiltered.filter(r => !fTipoEmp || (r.cliente_tipo_empresa || '') === fTipoEmp);
     const nameFiltered = tipoEmpFiltered;
@@ -880,6 +884,7 @@ export async function renderRecebimentos(app) {
     document.getElementById('fCategoriaNome').value = '';
     document.getElementById('fCliRegime').value = '';
     document.getElementById('fCliTipoEmpresa').value = '';
+    document.getElementById('fCliGrupo').value = '';
     document.getElementById('sortField').value = 'data_vencimento';
     document.getElementById('sortDir').value = 'asc';
 
@@ -887,6 +892,7 @@ export async function renderRecebimentos(app) {
     qCli = '';
     qDesc = '';
     qCat = '';
+    qGrupo = '';
     fRegime = '';
     fTipoEmp = '';
     sortField = 'data_vencimento';
@@ -905,6 +911,7 @@ export async function renderRecebimentos(app) {
   document.getElementById('fCliNome').addEventListener('input', (e) => { qCli = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('fDescricao').addEventListener('input', (e) => { qDesc = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('fCategoriaNome').addEventListener('input', (e) => { qCat = e.target.value.trim(); page = 1; debouncedLoad(); });
+  document.getElementById('fCliGrupo').addEventListener('input', (e) => { qGrupo = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; page = 1; load(); });
   document.getElementById('sortDir').addEventListener('change', (e) => { sortDir = e.target.value; page = 1; load(); });
   document.getElementById('fCliRegime').addEventListener('change', (e) => { fRegime = (e.target.value||'').trim(); page = 1; load(); });

@@ -1,5 +1,5 @@
 import { db } from '../supabaseClient.js';
-import { showToast, formatCurrency } from '../utils.js';
+import { showToast, formatCurrency, sanitizeText } from '../utils.js';
 import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
@@ -123,7 +123,22 @@ export async function renderFornecedores(app) {
       perPage,
       actions: [
         { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r) },
-        { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const { error } = await db.remove('fornecedores', r.id); if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); await load(); } } },
+        { label: 'Excluir', className: 'btn btn-danger', onClick: async r => {
+          const nome = sanitizeText(r.nome || '');
+          const { modal, close } = createModal({
+            title: 'Confirmar exclusão',
+            content: `<div class="card"><p>Deseja realmente excluir o fornecedor <strong>${nome}</strong>? Esta ação não pode ser desfeita.</p></div>`,
+            actions: [
+              { label: 'Cancelar', className: 'btn btn-outline', onClick: ({ close }) => close() },
+              { label: 'Excluir', className: 'btn btn-danger', onClick: async ({ close }) => {
+                const { error } = await db.remove('fornecedores', r.id);
+                if (error) showToast(error.message||'Erro ao excluir','error');
+                else { showToast('Fornecedor excluído','success'); await load(); }
+                close();
+              } }
+            ]
+          });
+        } },
         { label: 'Histórico', className: 'btn btn-outline', onClick: r => historicoPagamentos(r.id) },
       ],
     });
