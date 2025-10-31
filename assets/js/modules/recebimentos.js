@@ -9,8 +9,9 @@ async function fetchRecebimentos(filters = {}) {
   if (filters.status) opts.eq.status = filters.status;
   if (filters.tipo_recebimento) opts.eq.tipo_recebimento = filters.tipo_recebimento;
   if (filters.cliente_id) opts.eq.cliente_id = filters.cliente_id;
-  if (filters.de) opts.gte = { ...(opts.gte||{}), data_vencimento: filters.de };
-  if (filters.ate) opts.lte = { ...(opts.lte||{}), data_vencimento: filters.ate };
+  const dateCol = filters.date_field || 'data_vencimento';
+  if (filters.de) opts.gte = { ...(opts.gte||{}), [dateCol]: filters.de };
+  if (filters.ate) opts.lte = { ...(opts.lte||{}), [dateCol]: filters.ate };
   opts.orderBy = { column: 'data_vencimento', ascending: true };
   const { data, error } = await db.select('recebimentos', opts);
   if (error) { showToast(error.message || 'Erro ao carregar recebimentos', 'error'); return []; }
@@ -461,6 +462,13 @@ export async function renderRecebimentos(app) {
         <select id="fTipo"><option value="">Todos</option><option value="mensal">Mensal</option><option value="avulso">Avulso</option><option value="parcelado">Parcelado</option></select>
         <input type="date" id="fDe" />
         <input type="date" id="fAte" />
+        <label style="display:inline-flex;align-items:center;gap:6px;">
+          <span>Campo de data</span>
+          <select id="fDateField">
+            <option value="data_vencimento" selected>Por Vencimento</option>
+            <option value="data_recebimento">Por Recebimento</option>
+          </select>
+        </label>
         <input id="fCliNome" list="fCliOptions" placeholder="Cliente (nome)" />
         <datalist id="fCliOptions">${(lookups.clientes||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
         <input id="fDescricao" placeholder="Descrição (texto)" />
@@ -518,10 +526,13 @@ export async function renderRecebimentos(app) {
     const lastDay = `${lastDayDate.getFullYear()}-${String(lastDayDate.getMonth()+1).padStart(2,'0')}-${String(lastDayDate.getDate()).padStart(2,'0')}`;
     const fDeEl = document.getElementById('fDe');
     const fAteEl = document.getElementById('fAte');
+    const fDateFieldEl = document.getElementById('fDateField');
     if (fDeEl) fDeEl.value = firstDay;
     if (fAteEl) fAteEl.value = lastDay;
+    if (fDateFieldEl) fDateFieldEl.value = 'data_vencimento';
     filters.de = firstDay;
     filters.ate = lastDay;
+    filters.date_field = 'data_vencimento';
   } catch (e) {
     // ignora falha de inicialização silenciosamente
     console.warn('Falha ao definir período padrão (Recebimentos):', e);
@@ -712,8 +723,9 @@ export async function renderRecebimentos(app) {
       if (filters.status) tOpts.eq.status = filters.status;
       if (filters.tipo_recebimento) tOpts.eq.tipo_recebimento = filters.tipo_recebimento;
       if (filters.cliente_id) tOpts.eq.cliente_id = filters.cliente_id;
-      if (filters.de) tOpts.gte = { ...(tOpts.gte||{}), data_vencimento: filters.de };
-      if (filters.ate) tOpts.lte = { ...(tOpts.lte||{}), data_vencimento: filters.ate };
+      const dateColTotals = filters.date_field || 'data_vencimento';
+      if (filters.de) tOpts.gte = { ...(tOpts.gte||{}), [dateColTotals]: filters.de };
+      if (filters.ate) tOpts.lte = { ...(tOpts.lte||{}), [dateColTotals]: filters.ate };
       const { data: allForTotals } = await db.select('recebimentos', tOpts);
       const applied = (filters.onlyOverdue ? (allForTotals||[]).filter(r => isOverdue(r)) : (allForTotals||[]));
       totalRecebido = applied.reduce((acc, r) => acc + (r.status === 'recebido' ? Number(r.valor_recebido || 0) : 0), 0);
@@ -806,6 +818,7 @@ export async function renderRecebimentos(app) {
     filters.tipo_recebimento = document.getElementById('fTipo').value || undefined;
     filters.de = document.getElementById('fDe').value || undefined;
     filters.ate = document.getElementById('fAte').value || undefined;
+    filters.date_field = document.getElementById('fDateField').value || 'data_vencimento';
     filters.onlyOverdue = document.getElementById('fOnlyOverdue').checked || undefined;
     page = 1;
     load();

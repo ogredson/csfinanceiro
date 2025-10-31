@@ -9,8 +9,9 @@ async function fetchPagamentos(filters = {}) {
   if (filters.status) opts.eq.status = filters.status;
   if (filters.categoria_id) opts.eq.categoria_id = filters.categoria_id;
   if (filters.tipo_pagamento) opts.eq.tipo_pagamento = filters.tipo_pagamento;
-  if (filters.de) opts.gte = { ...(opts.gte||{}), data_vencimento: filters.de };
-  if (filters.ate) opts.lte = { ...(opts.lte||{}), data_vencimento: filters.ate };
+  const dateCol = filters.date_field || 'data_vencimento';
+  if (filters.de) opts.gte = { ...(opts.gte||{}), [dateCol]: filters.de };
+  if (filters.ate) opts.lte = { ...(opts.lte||{}), [dateCol]: filters.ate };
   opts.orderBy = { column: 'data_vencimento', ascending: true };
   const { data, error } = await db.select('pagamentos', opts);
   if (error) { showToast(error.message || 'Erro ao carregar pagamentos', 'error'); return []; }
@@ -421,6 +422,13 @@ export async function renderPagamentos(app) {
         <select id="fTipo"><option value="">Todos</option><option value="fixo">Fixo</option><option value="avulso">Avulso</option><option value="parcelado">Parcelado</option></select>
         <input type="date" id="fDe" />
         <input type="date" id="fAte" />
+        <label style="display:inline-flex;align-items:center;gap:6px;">
+          <span>Campo de data</span>
+          <select id="fDateField">
+            <option value="data_vencimento" selected>Por Vencimento</option>
+            <option value="data_pagamento">Por Pagamento</option>
+          </select>
+        </label>
         <input id="fForNome" list="fForOptions" placeholder="Fornecedor (nome)" />
         <datalist id="fForOptions">${(lookups.fornecedores||[]).map(f => `<option value="${f.nome}"></option>`).join('')}</datalist>
         <input id="fCategoriaNome" list="fCatOptions" placeholder="Categoria (nome)" />
@@ -468,10 +476,13 @@ export async function renderPagamentos(app) {
     const lastDay = `${lastDayDate.getFullYear()}-${String(lastDayDate.getMonth()+1).padStart(2,'0')}-${String(lastDayDate.getDate()).padStart(2,'0')}`;
     const fDeEl = document.getElementById('fDe');
     const fAteEl = document.getElementById('fAte');
+    const fDateFieldEl = document.getElementById('fDateField');
     if (fDeEl) fDeEl.value = firstDay;
     if (fAteEl) fAteEl.value = lastDay;
+    if (fDateFieldEl) fDateFieldEl.value = 'data_vencimento';
     filters.de = firstDay;
     filters.ate = lastDay;
+    filters.date_field = 'data_vencimento';
   } catch (e) {
     // ignora falha de inicialização silenciosamente
     console.warn('Falha ao definir período padrão (Pagamentos):', e);
@@ -522,8 +533,9 @@ export async function renderPagamentos(app) {
       if (filters.status) opts.eq.status = filters.status;
       if (filters.tipo_pagamento) opts.eq.tipo_pagamento = filters.tipo_pagamento;
       if (filters.fornecedor_id) opts.eq.fornecedor_id = filters.fornecedor_id;
-      if (filters.de) opts.gte = { ...(opts.gte||{}), data_vencimento: filters.de };
-      if (filters.ate) opts.lte = { ...(opts.lte||{}), data_vencimento: filters.ate };
+      const dateColServer = filters.date_field || 'data_vencimento';
+      if (filters.de) opts.gte = { ...(opts.gte||{}), [dateColServer]: filters.de };
+      if (filters.ate) opts.lte = { ...(opts.lte||{}), [dateColServer]: filters.ate };
       const serverSortable = new Set(['data_vencimento','data_pagamento','descricao','valor_esperado','valor_pago','status','tipo_pagamento','parcela_atual','total_parcelas','created_at']);
       const orderColumn = serverSortable.has(sortField) ? sortField : 'data_vencimento';
       const ascending = (sortDir !== 'desc');
@@ -655,8 +667,9 @@ export async function renderPagamentos(app) {
       if (filters.status) tOpts.eq.status = filters.status;
       if (filters.tipo_pagamento) tOpts.eq.tipo_pagamento = filters.tipo_pagamento;
       if (filters.fornecedor_id) tOpts.eq.fornecedor_id = filters.fornecedor_id;
-      if (filters.de) tOpts.gte = { ...(tOpts.gte||{}), data_vencimento: filters.de };
-      if (filters.ate) tOpts.lte = { ...(tOpts.lte||{}), data_vencimento: filters.ate };
+      const dateColTotals = filters.date_field || 'data_vencimento';
+      if (filters.de) tOpts.gte = { ...(tOpts.gte||{}), [dateColTotals]: filters.de };
+      if (filters.ate) tOpts.lte = { ...(tOpts.lte||{}), [dateColTotals]: filters.ate };
       const { data: allForTotals } = await db.select('pagamentos', tOpts);
       const applied = (filters.onlyOverdue ? (allForTotals||[]).filter(r => isOverdue(r)) : (allForTotals||[]));
       totalPago = applied.reduce((acc, r) => acc + (r.status === 'pago' ? Number(r.valor_pago || 0) : 0), 0);
@@ -746,6 +759,7 @@ export async function renderPagamentos(app) {
     filters.tipo_pagamento = document.getElementById('fTipo').value || undefined;
     filters.de = document.getElementById('fDe').value || undefined;
     filters.ate = document.getElementById('fAte').value || undefined;
+    filters.date_field = document.getElementById('fDateField').value || 'data_vencimento';
     filters.onlyOverdue = document.getElementById('fOnlyOverdue').checked || undefined;
     page = 1;
     load();
