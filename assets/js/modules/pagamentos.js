@@ -460,6 +460,22 @@ export async function renderPagamentos(app) {
   `;
 
   const filters = {};
+  // Inicializa filtros de data com o período do mês atual
+  try {
+    const now = new Date();
+    const firstDay = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+    const lastDayDate = new Date(now.getFullYear(), now.getMonth()+1, 0);
+    const lastDay = `${lastDayDate.getFullYear()}-${String(lastDayDate.getMonth()+1).padStart(2,'0')}-${String(lastDayDate.getDate()).padStart(2,'0')}`;
+    const fDeEl = document.getElementById('fDe');
+    const fAteEl = document.getElementById('fAte');
+    if (fDeEl) fDeEl.value = firstDay;
+    if (fAteEl) fAteEl.value = lastDay;
+    filters.de = firstDay;
+    filters.ate = lastDay;
+  } catch (e) {
+    // ignora falha de inicialização silenciosamente
+    console.warn('Falha ao definir período padrão (Pagamentos):', e);
+  }
   let currentRows = [];
   let qFor = '';
   let qCat = '';
