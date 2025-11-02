@@ -711,6 +711,7 @@ export async function renderPagamentos(app) {
 
     // totais gerais (todas as linhas que atendem aos filtros/pesquisas)
     let totalPago = 0, totalAPagar = 0;
+    let countPago = 0, countAPagar = 0;
     if (serverMode) {
       // Busca todas as linhas que atendem aos filtros base (sem paginação) e aplica "Somente em atraso" no cliente
       const tOpts = { select: 'status, valor_esperado, valor_pago' };
@@ -725,15 +726,21 @@ export async function renderPagamentos(app) {
       const applied = (filters.onlyOverdue ? (allForTotals||[]).filter(r => isOverdue(r)) : (allForTotals||[]));
       totalPago = applied.reduce((acc, r) => acc + (r.status === 'pago' ? Number(r.valor_pago || 0) : 0), 0);
       totalAPagar = applied.reduce((acc, r) => acc + (r.status === 'pendente' ? Number(r.valor_esperado || 0) : 0), 0);
+      countPago = applied.filter(r => r.status === 'pago').length;
+      countAPagar = applied.filter(r => r.status === 'pendente').length;
     } else {
       // Quando há filtros por nome, "filtered" já representa todas as linhas após pesquisa e atraso
       totalPago = filtered.reduce((acc, r) => acc + (r.status === 'pago' ? Number(r.valor_pago || 0) : 0), 0);
       totalAPagar = filtered.reduce((acc, r) => acc + (r.status === 'pendente' ? Number(r.valor_esperado || 0) : 0), 0);
+      countPago = filtered.filter(r => r.status === 'pago').length;
+      countAPagar = filtered.filter(r => r.status === 'pendente').length;
     }
     const totalsEl = document.getElementById('totalsPag');
     if (totalsEl) {
       const valuesEl = totalsEl.querySelector('.t-values');
       if (valuesEl) valuesEl.textContent = `${formatCurrency(totalPago)} / ${formatCurrency(totalAPagar)}`;
+      const labelEl = totalsEl.querySelector('.t-label');
+      if (labelEl) labelEl.textContent = `Pago (${countPago}) / A Pagar (${countAPagar})`;
     }
 
     if (!serverMode) {

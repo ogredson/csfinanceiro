@@ -775,6 +775,7 @@ export async function renderRecebimentos(app) {
 
     // totais gerais (todas as linhas que atendem aos filtros/pesquisas)
     let totalRecebido = 0, totalAReceber = 0;
+    let countRecebido = 0, countAReceber = 0;
     if (serverMode) {
       // Busca todas as linhas que atendem aos filtros base (sem paginação) e aplica "Somente em atraso" no cliente
       const tOpts = { select: 'status, valor_esperado, valor_recebido' };
@@ -789,16 +790,22 @@ export async function renderRecebimentos(app) {
       const applied = (filters.onlyOverdue ? (allForTotals||[]).filter(r => isOverdue(r)) : (allForTotals||[]));
       totalRecebido = applied.reduce((acc, r) => acc + (r.status === 'recebido' ? Number(r.valor_recebido || 0) : 0), 0);
       totalAReceber = applied.reduce((acc, r) => acc + (r.status === 'pendente' ? Number(r.valor_esperado || 0) : 0), 0);
+      countRecebido = applied.filter(r => r.status === 'recebido').length;
+      countAReceber = applied.filter(r => r.status === 'pendente').length;
     } else {
       // Quando há filtros por nome, "filtered" já representa todas as linhas após pesquisa e atraso
       totalRecebido = filtered.reduce((acc, r) => acc + (r.status === 'recebido' ? Number(r.valor_recebido || 0) : 0), 0);
       totalAReceber = filtered.reduce((acc, r) => acc + (r.status === 'pendente' ? Number(r.valor_esperado || 0) : 0), 0);
+      countRecebido = filtered.filter(r => r.status === 'recebido').length;
+      countAReceber = filtered.filter(r => r.status === 'pendente').length;
     }
     const grandTotal = totalRecebido + totalAReceber;
     const totalsEl = document.getElementById('totalsRec');
     if (totalsEl) {
       const valuesEl = totalsEl.querySelector('.t-values');
       if (valuesEl) valuesEl.textContent = `${formatCurrency(totalRecebido)} / ${formatCurrency(totalAReceber)}`;
+      const labelEl = totalsEl.querySelector('.t-label');
+      if (labelEl) labelEl.textContent = `Recebido (${countRecebido}) / A Receber (${countAReceber})`;
     }
   
     if (!serverMode) {
