@@ -186,7 +186,16 @@ async function openCreate() {
       if (nomeCli && !values.cliente_id) { showToast('Selecione um cliente válido da lista', 'error'); return; }
       if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
       if (nomeFor && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
-      if (values.tipo_recebimento === 'mensal' && !values.dia_recebimento) { showToast('Para tipo "mensal", informe o Dia do Recebimento.', 'error'); return; }
+      // obrigatoriedade de dia para tipos fixo/mensal
+      if ((values.tipo_recebimento === 'mensal' || values.tipo_recebimento === 'fixo') && !values.dia_recebimento) {
+        showToast('Para tipo "fixo" ou "mensal", informe o Dia do Recebimento.', 'error');
+        return;
+      }
+      // faixa válida do dia (1-31)
+      if (values.dia_recebimento != null && (values.dia_recebimento < 1 || values.dia_recebimento > 31)) {
+        showToast('Dia do Recebimento deve estar entre 1 e 31.', 'error');
+        return;
+      }
       // informação quando não há parcelamento
       if (values.tipo_recebimento === 'parcelado' && values.parcela_atual === 1 && values.total_parcelas === 1) {
         showToast('Parcela atual 1 de 1: crie um recebimento padrão (sem parcelamento).', 'info');
@@ -246,7 +255,16 @@ async function openEdit(row) {
       if (nomeCli && !values.cliente_id) { showToast('Selecione um cliente válido da lista', 'error'); return; }
       if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
       if (nomeFor && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
-      if (values.tipo_recebimento === 'mensal' && !values.dia_recebimento) { showToast('Para tipo "mensal", informe o Dia do Recebimento.', 'error'); return; }
+      // obrigatoriedade de dia para tipos fixo/mensal
+      if ((values.tipo_recebimento === 'mensal' || values.tipo_recebimento === 'fixo') && !values.dia_recebimento) {
+        showToast('Para tipo "fixo" ou "mensal", informe o Dia do Recebimento.', 'error');
+        return;
+      }
+      // faixa válida do dia (1-31)
+      if (values.dia_recebimento != null && (values.dia_recebimento < 1 || values.dia_recebimento > 31)) {
+        showToast('Dia do Recebimento deve estar entre 1 e 31.', 'error');
+        return;
+      }
       const { error } = await db.update('recebimentos', row.id, values);
       if (error) {
         showToast(error.message||'Erro ao atualizar', 'error');

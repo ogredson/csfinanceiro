@@ -174,6 +174,16 @@ async function openCreate() {
       if (nomeFor && !values.fornecedor_id) { showToast('Selecione um fornecedor válido da lista', 'error'); return; }
       if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
       if (nomeForma && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      // obrigatoriedade de dia para tipos fixo/mensal
+      if ((values.tipo_pagamento === 'fixo' || values.tipo_pagamento === 'mensal') && !values.dia_pagamento) {
+        showToast('Para tipo "fixo" ou "mensal", informe o Dia do Pagamento.', 'error');
+        return;
+      }
+      // faixa válida do dia (1-31)
+      if (values.dia_pagamento != null && (values.dia_pagamento < 1 || values.dia_pagamento > 31)) {
+        showToast('Dia do Pagamento deve estar entre 1 e 31.', 'error');
+        return;
+      }
       if (values.tipo_pagamento === 'parcelado' && values.parcela_atual === 1 && values.total_parcelas === 1) {
         showToast('Parcela atual 1 de 1: crie um pagamento padrão (sem parcelamento).', 'info');
       }
@@ -202,6 +212,16 @@ async function openEdit(row) {
       if (nomeFor && !values.fornecedor_id) { showToast('Selecione um fornecedor válido da lista', 'error'); return; }
       if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
       if (nomeForma && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      // obrigatoriedade de dia para tipos fixo/mensal
+      if ((values.tipo_pagamento === 'fixo' || values.tipo_pagamento === 'mensal') && !values.dia_pagamento) {
+        showToast('Para tipo "fixo" ou "mensal", informe o Dia do Pagamento.', 'error');
+        return;
+      }
+      // faixa válida do dia (1-31)
+      if (values.dia_pagamento != null && (values.dia_pagamento < 1 || values.dia_pagamento > 31)) {
+        showToast('Dia do Pagamento deve estar entre 1 e 31.', 'error');
+        return;
+      }
       const { error } = await db.update('pagamentos', row.id, values);
       if (error) {
         showToast(error.message||'Erro ao atualizar', 'error');
