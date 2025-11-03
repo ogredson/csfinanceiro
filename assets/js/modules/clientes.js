@@ -28,11 +28,11 @@ function clienteForm(initial = {}) {
 
       <div class="card" style="margin-top:12px;">
         <h3>Documentos</h3>
-        <div class="form-row">
-          <div class="field"><label>Documento (CPF/CNPJ)</label><input id="documento" value="${initial.documento||''}"/></div>
-          <div class="field"><label>Inscrição Estadual (IE)</label><input id="ie" value="${initial.ie||''}"/></div>
-          <div class="field"><label>Inscrição Municipal (IM)</label><input id="im" value="${initial.im||''}"/></div>
-          <div class="field"><label>CNAE</label><input id="cnae" value="${initial.cnae||''}" placeholder="Ex.: 4741-5/00"/></div>
+        <div class="form-inline">
+          <div class="field stretch"><label>Documento (CPF/CNPJ)</label><input id="documento" value="${initial.documento||''}"/></div>
+          <div class="field md"><label>Inscrição Estadual (IE)</label><input id="ie" value="${initial.ie||''}"/></div>
+          <div class="field md"><label>Inscrição Municipal (IM)</label><input id="im" value="${initial.im||''}"/></div>
+          <div class="field sm"><label>CNAE</label><input id="cnae" value="${initial.cnae||''}" placeholder="Ex.: 4741-5/00"/></div>
         </div>
       </div>
 
@@ -61,14 +61,14 @@ function clienteForm(initial = {}) {
 
       <div class="card" style="margin-top:12px;">
         <h3>Endereço</h3>
-        <div class="form-row">
-          <div class="field"><label>Logradouro</label><input id="logradouro" value="${initial.logradouro||''}"/></div>
-          <div class="field"><label>Número</label><input id="numero" value="${initial.numero||''}"/></div>
-          <div class="field"><label>Complemento</label><input id="complemento" value="${initial.complemento||''}"/></div>
-          <div class="field"><label>Bairro</label><input id="bairro" value="${initial.bairro||''}"/></div>
-          <div class="field"><label>CEP</label><input id="cep" value="${initial.cep||''}" placeholder="Ex.: 00000-000"/></div>
-          <div class="field"><label>Cidade</label><input id="cidade" value="${initial.cidade||''}"/></div>
-          <div class="field"><label>UF</label><input id="uf" value="${initial.uf||''}" maxlength="2" placeholder="Ex.: CE"/></div>
+        <div class="form-inline">
+          <div class="field stretch"><label>Logradouro</label><input id="logradouro" value="${initial.logradouro||''}"/></div>
+          <div class="field sm"><label>Número</label><input id="numero" value="${initial.numero||''}"/></div>
+          <div class="field md"><label>Complemento</label><input id="complemento" value="${initial.complemento||''}"/></div>
+          <div class="field md"><label>Bairro</label><input id="bairro" value="${initial.bairro||''}"/></div>
+          <div class="field sm"><label>CEP</label><input id="cep" value="${initial.cep||''}" placeholder="Ex.: 00000-000"/></div>
+          <div class="field stretch"><label>Cidade</label><input id="cidade" value="${initial.cidade||''}"/></div>
+          <div class="field sm"><label>UF</label><input id="uf" value="${initial.uf||''}" maxlength="2" placeholder="Ex.: CE"/></div>
         </div>
       </div>
 
