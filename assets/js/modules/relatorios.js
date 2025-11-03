@@ -559,6 +559,12 @@ export async function renderRelatorios(app) {
         <div class="area-body" id="areaBody_participacao" style="display:none;">
           <div class="muted" style="margin-bottom:8px;">Mensalidade e % de participação no período; classes por pagamento e faturamento.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <label>Agrupar Clientes
+              <select id="agrupaClientes">
+                <option value="nao" selected>Não</option>
+                <option value="sim">Sim</option>
+              </select>
+            </label>
             <button id="btnParticipacao" class="btn btn-outline">Gerar Participação por Cliente</button>
             <button id="btnParticipacaoCSV" class="btn btn-outline">Exportar CSV</button>
           </div>
@@ -669,8 +675,9 @@ export async function renderRelatorios(app) {
     const startStr = document.getElementById('dtInicio').value;
     const endStr = document.getElementById('dtFim').value;
     window._campoDataRelatorios = document.getElementById('campoData').value;
+    const agrupa = (document.getElementById('agrupaClientes')?.value === 'sim');
     try {
-      const dados = await calcularParticipacaoPorCliente(startStr, endStr);
+      const dados = await calcularParticipacaoPorCliente(startStr, endStr, agrupa);
       renderParticipacaoTabela(resultEl, dados);
       window._lastParticipacaoRows = dados?.rowsCSV || [];
       showToast('Participação por Cliente gerada', 'success');
@@ -1557,11 +1564,11 @@ function classifyFaturamento(mensalidade, qs) {
   if (mensalidade >= (qs.q1 || 0)) return 'C';
   return 'D';
 }
-async function calcularParticipacaoPorCliente(startStr, endStr) {
+async function calcularParticipacaoPorCliente(startStr, endStr, agrupar = false) {
   const campoSel = window._campoDataRelatorios || 'data_vencimento';
   const recDateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
   const { data: recebimentos } = await db.select('recebimentos', { select: 'cliente_id, valor_esperado, valor_recebido, status, data_vencimento, data_recebimento, tipo_recebimento' });
-  const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
+  const { data: clientes } = await db.select('clientes', { select: 'id, nome, grupo_cliente' });
   const inRange = (s) => { const dt = parseDateStr(s); if (!dt) return false; const a = parseDateStr(startStr); const b = parseDateStr(endStr); return dt >= a && dt <= b; };
 
   const byClient = new Map();
@@ -1572,11 +1579,43 @@ async function calcularParticipacaoPorCliente(startStr, endStr) {
     byClient.set(r.cliente_id, (byClient.get(r.cliente_id)||0) + valor);
     const arr = recsByClient.get(r.cliente_id) || []; arr.push(r); recsByClient.set(r.cliente_id, arr);
   });
+  const metaCli = new Map((clientes||[]).map(c => [c.id, { nome: c.nome, grupo: (c.grupo_cliente||'').trim() }]));
 
-  const rows = Array.from(byClient.entries()).map(([cid, mensalidade]) => {
-    const nome = (clientes||[]).find(c => c.id === cid)?.nome || '—';
-    return { cliente_id: cid, cliente_nome: nome, mensalidade };
-  }).sort((a,b)=>b.mensalidade - a.mensalidade);
+  let rows;
+  if (!agrupar) {
+    rows = Array.from(byClient.entries()).map(([cid, mensalidade]) => {
+      const nome = metaCli.get(cid)?.nome || '—';
+      return { cliente_id: cid, cliente_nome: nome, mensalidade };
+    }).sort((a,b)=>b.mensalidade - a.mensalidade);
+  } else {
+    const groupSum = new Map();
+    const recsByGroup = new Map();
+    const individualRows = [];
+    Array.from(byClient.entries()).forEach(([cid, mensalidade]) => {
+      const meta = metaCli.get(cid) || {};
+      const grupo = (meta.grupo||'').trim();
+      if (grupo) {
+        groupSum.set(grupo, (groupSum.get(grupo)||0) + mensalidade);
+        const recs = recsByClient.get(cid) || [];
+        recsByGroup.set(grupo, (recsByGroup.get(grupo)||[]).concat(recs));
+      } else {
+        individualRows.push({ cliente_id: cid, cliente_nome: meta.nome || '—', mensalidade });
+      }
+    });
+    const groupRows = Array.from(groupSum.entries()).map(([grupo, mensalidade]) => ({ cliente_id: null, cliente_nome: grupo, mensalidade, _group: grupo }));
+    rows = groupRows.concat(individualRows).sort((a,b)=>b.mensalidade - a.mensalidade);
+
+    // compute classe_pagamento for grouped entries using aggregated recs
+    const todayStr = formatDate(new Date());
+    rows = rows.map(r => {
+      if (r._group) {
+        const recs = recsByGroup.get(r._group) || [];
+        const classePag = classifyPagamentoForClient(recs, todayStr);
+        return { ...r, _recsAgg: recs, _classe_pag_agg: classePag };
+      }
+      return r;
+    });
+  }
 
   const total = sum(rows.map(r => r.mensalidade));
   const media = rows.length ? total / rows.length : 0;
@@ -1584,11 +1623,11 @@ async function calcularParticipacaoPorCliente(startStr, endStr) {
   const todayStr = formatDate(new Date());
 
   const enriched = rows.map(r => {
-    const recsCli = recsByClient.get(r.cliente_id) || [];
-    const classePag = classifyPagamentoForClient(recsCli, todayStr);
+    const recsCli = r._group ? (r._recsAgg || []) : (recsByClient.get(r.cliente_id) || []);
+    const classePag = r._group ? (r._classe_pag_agg || classifyPagamentoForClient(recsCli, todayStr)) : classifyPagamentoForClient(recsCli, todayStr);
     const classeFat = classifyFaturamento(r.mensalidade, qs);
     const part = total ? (r.mensalidade / total) : 0;
-    return { ...r, classe_pagamento: classePag, classe_faturamento: classeFat, participacao: part };
+    return { cliente_nome: r.cliente_nome, mensalidade: r.mensalidade, classe_pagamento: classePag, classe_faturamento: classeFat, participacao: part };
   });
 
   const rowsCSV = enriched.map(r => ({
