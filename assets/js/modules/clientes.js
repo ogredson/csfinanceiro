@@ -4,7 +4,11 @@ import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
 async function fetchClientes() {
-  const { data, error } = await db.select('clientes', { select: 'id, nome, email, telefone, documento, grupo_cliente, tipo_empresa, regime_tributario, observacao, ativo, created_at', orderBy: { column: 'created_at', ascending: false } });
+  const { data, error } = await db.select('clientes', { select: [
+    'id, nome, email, telefone, documento, grupo_cliente, tipo_empresa, regime_tributario, observacao, ativo, created_at',
+    // novos campos
+    'nome_fantasia, ie, im, cnae, logradouro, numero, complemento, bairro, cep, cidade, uf, tipo_unidade'
+  ].join(', '), orderBy: { column: 'created_at', ascending: false } });
   if (error) { showToast(error.message || 'Erro ao carregar clientes', 'error'); return []; }
   return data || [];
 }
@@ -12,32 +16,85 @@ async function fetchClientes() {
 function clienteForm(initial = {}) {
   return `
     <form id="cliForm">
-      <div class="form-row">
-        <div class="field"><label>Nome</label><input id="nome" value="${initial.nome||''}" required/></div>
-        <div class="field"><label>Email</label><input type="email" id="email" value="${initial.email||''}"/></div>
-        <div class="field"><label>Telefone</label><input id="telefone" value="${initial.telefone||''}"/></div>
-        <div class="field"><label>Documento</label><input id="documento" value="${initial.documento||''}"/></div>
-        <div class="field"><label>Grupo do Cliente</label><input id="grupo_cliente" value="${initial.grupo_cliente||''}" placeholder="Ex.: VIP, Atacado, Revenda"/></div>
-        <div class="field"><label>Tipo de Empresa</label>
-          <select id="tipo_empresa">
-            <option value="comercio" ${initial.tipo_empresa==='comercio'?'selected':''}>Comércio</option>
-            <option value="servico" ${initial.tipo_empresa==='servico'?'selected':''}>Serviço</option>
-            <option value="comercio e servico" ${initial.tipo_empresa==='comercio e servico'?'selected':''}>Comércio e Serviço</option>
-            <option value="industria" ${initial.tipo_empresa==='industria'?'selected':''}>Indústria</option>
-          </select>
+      <div class="card">
+        <h3>Identificação e Contato</h3>
+        <div class="form-row">
+          <div class="field"><label>Nome</label><input id="nome" value="${initial.nome||''}" required/></div>
+          <div class="field"><label>Nome Fantasia</label><input id="nome_fantasia" value="${initial.nome_fantasia||''}"/></div>
+          <div class="field"><label>Email</label><input type="email" id="email" value="${initial.email||''}"/></div>
+          <div class="field"><label>Telefone</label><input id="telefone" value="${initial.telefone||''}"/></div>
         </div>
-        <div class="field"><label>Regime Tributário</label>
-          <select id="regime_tributario">
-            <option value="simples nacional" ${initial.regime_tributario==='simples nacional'?'selected':''}>Simples Nacional</option>
-            <option value="lucro real" ${initial.regime_tributario==='lucro real'?'selected':''}>Lucro Real</option>
-            <option value="lucro presumido" ${initial.regime_tributario==='lucro presumido'?'selected':''}>Lucro Presumido</option>
-            <option value="outro" ${initial.regime_tributario==='outro'?'selected':''}>Outro</option>
-          </select>
-        </div>
-        <div class="field"><label>Ativo</label><select id="ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div>
       </div>
-      <div class="form-row" style="margin-top:12px">
-        <div class="field full"><label>Observação</label><textarea id="observacao" rows="3">${initial.observacao||''}</textarea></div>
+
+      <div class="card" style="margin-top:12px;">
+        <h3>Documentos</h3>
+        <div class="form-row">
+          <div class="field"><label>Documento (CPF/CNPJ)</label><input id="documento" value="${initial.documento||''}"/></div>
+          <div class="field"><label>Inscrição Estadual (IE)</label><input id="ie" value="${initial.ie||''}"/></div>
+          <div class="field"><label>Inscrição Municipal (IM)</label><input id="im" value="${initial.im||''}"/></div>
+          <div class="field"><label>CNAE</label><input id="cnae" value="${initial.cnae||''}" placeholder="Ex.: 4741-5/00"/></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <h3>Empresa</h3>
+        <div class="form-row">
+          <div class="field"><label>Grupo do Cliente</label><input id="grupo_cliente" value="${initial.grupo_cliente||''}" placeholder="Ex.: VIP, Atacado, Revenda"/></div>
+          <div class="field"><label>Tipo de Empresa</label>
+            <select id="tipo_empresa">
+              <option value="comercio" ${initial.tipo_empresa==='comercio'?'selected':''}>Comércio</option>
+              <option value="servico" ${initial.tipo_empresa==='servico'?'selected':''}>Serviço</option>
+              <option value="comercio e servico" ${initial.tipo_empresa==='comercio e servico'?'selected':''}>Comércio e Serviço</option>
+              <option value="industria" ${initial.tipo_empresa==='industria'?'selected':''}>Indústria</option>
+            </select>
+          </div>
+          <div class="field"><label>Regime Tributário</label>
+            <select id="regime_tributario">
+              <option value="simples nacional" ${initial.regime_tributario==='simples nacional'?'selected':''}>Simples Nacional</option>
+              <option value="lucro real" ${initial.regime_tributario==='lucro real'?'selected':''}>Lucro Real</option>
+              <option value="lucro presumido" ${initial.regime_tributario==='lucro presumido'?'selected':''}>Lucro Presumido</option>
+              <option value="outro" ${initial.regime_tributario==='outro'?'selected':''}>Outro</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <h3>Endereço</h3>
+        <div class="form-row">
+          <div class="field"><label>Logradouro</label><input id="logradouro" value="${initial.logradouro||''}"/></div>
+          <div class="field"><label>Número</label><input id="numero" value="${initial.numero||''}"/></div>
+          <div class="field"><label>Complemento</label><input id="complemento" value="${initial.complemento||''}"/></div>
+          <div class="field"><label>Bairro</label><input id="bairro" value="${initial.bairro||''}"/></div>
+          <div class="field"><label>CEP</label><input id="cep" value="${initial.cep||''}" placeholder="Ex.: 00000-000"/></div>
+          <div class="field"><label>Cidade</label><input id="cidade" value="${initial.cidade||''}"/></div>
+          <div class="field"><label>UF</label><input id="uf" value="${initial.uf||''}" maxlength="2" placeholder="Ex.: CE"/></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <h3>Unidade e Status</h3>
+        <div class="form-row">
+          <div class="field"><label>Tipo de Unidade</label>
+            <select id="tipo_unidade">
+              <option value="matriz" ${initial.tipo_unidade==='matriz'?'selected':''}>Matriz</option>
+              <option value="filial" ${initial.tipo_unidade==='filial'?'selected':''}>Filial</option>
+            </select>
+          </div>
+          <div class="field"><label>Ativo</label>
+            <select id="ativo">
+              <option value="true" ${initial.ativo===true?'selected':''}>Ativo</option>
+              <option value="false" ${initial.ativo===false?'selected':''}>Inativo</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <h3>Observação</h3>
+        <div class="form-row">
+          <div class="field full"><label>Observação</label><textarea id="observacao" rows="3">${initial.observacao||''}</textarea></div>
+        </div>
       </div>
     </form>`;
 }
@@ -46,12 +103,24 @@ function getCliFormValues(modal) {
   const getVal = id => modal.querySelector(`#${id}`).value;
   return {
     nome: getVal('nome'),
+    nome_fantasia: getVal('nome_fantasia') || null,
     email: getVal('email') || null,
     telefone: getVal('telefone') || null,
     documento: getVal('documento') || null,
+    ie: getVal('ie') || null,
+    im: getVal('im') || null,
+    cnae: getVal('cnae') || null,
     grupo_cliente: getVal('grupo_cliente') || null,
     tipo_empresa: getVal('tipo_empresa') || null,
     regime_tributario: getVal('regime_tributario') || null,
+    logradouro: getVal('logradouro') || null,
+    numero: getVal('numero') || null,
+    complemento: getVal('complemento') || null,
+    bairro: getVal('bairro') || null,
+    cep: getVal('cep') || null,
+    cidade: getVal('cidade') || null,
+    uf: getVal('uf') || null,
+    tipo_unidade: getVal('tipo_unidade') || 'matriz',
     observacao: getVal('observacao') || null,
     ativo: getVal('ativo') === 'true',
   };
