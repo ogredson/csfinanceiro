@@ -91,6 +91,8 @@ body {
 .table th, .table td { padding: 10px; border-bottom: 1px solid #1F2937; text-align: left; }
 .table th { color: var(--muted); font-weight: 500; }
 .table .row-actions { display: flex; gap: 6px; }
+/* Garantir ícone à esquerda e evitar quebra de linha nos botões de ação */
+.table .row-actions .btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-row .full { grid-column: 1 / -1; }

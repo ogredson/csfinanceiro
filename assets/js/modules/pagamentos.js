@@ -234,6 +234,36 @@ async function openEdit(row) {
   ] });
 }
 
+async function openClone(row) {
+  const lookups = await ensureLookups();
+  const initial = {
+    ...row,
+    fornecedor_nome: lookups.mapFor.get(row.fornecedor_id) || '',
+    categoria_nome: lookups.mapCat.get(row.categoria_id) || '',
+    forma_pagamento_nome: lookups.mapForma.get(row.forma_pagamento_id) || '',
+    valor_esperado: '',
+    valor_pago: '',
+    data_emissao: formatDate(),
+    data_vencimento: '',
+    data_pagamento: '',
+  };
+  const { modal, close } = createModal({ title: 'Clonar Pagamento', content: pagamentoForm(initial, lookups), actions: [
+    { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
+    { label: 'Criar', className: 'btn btn-primary', onClick: async ({ close }) => {
+      const values = getPagFormValues(modal, lookups);
+      const nomeFor = modal.querySelector('#fornecedor_nome')?.value?.trim();
+      const nomeCat = modal.querySelector('#categoria_nome')?.value?.trim();
+      const nomeForma = modal.querySelector('#forma_nome')?.value?.trim();
+      if (nomeFor && !values.fornecedor_id) { showToast('Selecione um fornecedor válido da lista', 'error'); return; }
+      if (nomeCat && !values.categoria_id) { showToast('Selecione uma categoria válida da lista', 'error'); return; }
+      if (nomeForma && !values.forma_pagamento_id) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      const { error } = await db.insert('pagamentos', values);
+      if (error) { showToast(error.message||'Erro ao clonar', 'error'); }
+      else { showToast('Pagamento clonado', 'success'); close(); window.location.hash = '#/pagamentos'; }
+    } }
+  ]});
+}
+
 async function markPago(row) {
   const valor = row.valor_esperado;
   const { error } = await db.update('pagamentos', row.id, { status: 'pago', valor_pago: valor, data_pagamento: formatDate() });
@@ -472,6 +502,7 @@ export async function renderPagamentos(app) {
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <input id="fForNome" list="fForOptions" placeholder="Fornecedor (nome)" />
               <datalist id="fForOptions">${(lookups.fornecedores||[]).map(f => `<option value="${f.nome}"></option>`).join('')}</datalist>
+              <input id="fDescricao" placeholder="Descrição (texto)" />
               <input id="fCategoriaNome" list="fCatOptions" placeholder="Categoria (nome)" />
               <datalist id="fCatOptions">${(lookups.categorias||[]).map(c => `<option value="${c.nome}"></option>`).join('')}</datalist>
               <input id="fFormaNome" list="fFormaOptions" placeholder="Forma de pagamento (nome)" />
@@ -542,6 +573,7 @@ export async function renderPagamentos(app) {
   let qFor = '';
   let qCat = '';
   let qForma = '';
+  let qDesc = '';
   const perPage = 20;
   let page = 1;
   let sortField = 'data_vencimento';
@@ -572,7 +604,7 @@ export async function renderPagamentos(app) {
     const cont = document.getElementById('listCard');
     const myVersion = ++loadVersion;
     setLoading(cont, true);
-    const serverMode = !qFor && !qCat && !qForma;
+    const serverMode = !qFor && !qCat && !qForma && !qDesc;
     let rows = [];
     let totalPages = 1;
 
@@ -685,7 +717,7 @@ export async function renderPagamentos(app) {
       const cls = `days-text${highlight ? ' days-highlight' : ''}`;
       return `<span class="${cls}" style="${style}">${text}</span>`;
     }
-    const nameFiltered = serverMode ? enriched : enriched.filter(r => ilike(r.fornecedor_nome, qFor) && ilike(r.categoria_nome, qCat) && ilike(r.forma_pagamento_nome, qForma));
+    const nameFiltered = serverMode ? enriched : enriched.filter(r => ilike(r.fornecedor_nome, qFor) && ilike(r.categoria_nome, qCat) && ilike(r.forma_pagamento_nome, qForma) && ilike(r.descricao, qDesc));
     const filtered = (filters.onlyOverdue) ? nameFiltered.filter(r => isOverdue(r)) : nameFiltered;
 
     function getSortVal(obj, key) {
@@ -784,6 +816,7 @@ export async function renderPagamentos(app) {
       perPage,
       actions: [
         { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r) },
+        { label: 'Clonar', className: 'btn btn-outline', onClick: r => openClone(r) },
         { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const ok = confirm(`Confirma a exclusão de "${r.descricao}"? Esta ação não pode ser desfeita.`); if (!ok) return; const { error } = await db.remove('pagamentos', r.id); if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); load(); } } },
         { label: 'Pago', className: 'btn btn-success', onClick: r => markPago(r) },
       ],
@@ -838,6 +871,7 @@ export async function renderPagamentos(app) {
     document.getElementById('fDateField').value = 'data_vencimento';
     document.getElementById('fOnlyOverdue').checked = false;
     document.getElementById('fForNome').value = '';
+    document.getElementById('fDescricao').value = '';
     document.getElementById('fCategoriaNome').value = '';
     document.getElementById('fFormaNome').value = '';
     document.getElementById('sortField').value = 'data_vencimento';
@@ -845,6 +879,7 @@ export async function renderPagamentos(app) {
 
     // reset variáveis de busca e ordenação
     qFor = '';
+    qDesc = '';
     qCat = '';
     qForma = '';
     sortField = 'data_vencimento';
@@ -860,7 +895,8 @@ export async function renderPagamentos(app) {
     page = 1;
     load();
   });
-  document.getElementById('fForNome').addEventListener('input', (e) => { qFor = e.target.value.trim(); page = 1; debouncedLoad(); });
+    document.getElementById('fForNome').addEventListener('input', (e) => { qFor = e.target.value.trim(); page = 1; debouncedLoad(); });
+  document.getElementById('fDescricao').addEventListener('input', (e) => { qDesc = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('fCategoriaNome').addEventListener('input', (e) => { qCat = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('fFormaNome').addEventListener('input', (e) => { qForma = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; page = 1; load(); });
