@@ -96,7 +96,7 @@ function getMonthNamePtBr(month) {
 async function gerarCalendarioRecebimentosPDF(startStr, endStr) {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   doc.setFont('helvetica','normal');
   const blue = [0, 64, 192];
   const margin = 24;
@@ -237,7 +237,7 @@ async function gerarCalendarioRecebimentosPDF(startStr, endStr) {
 async function gerarCalendarioPagamentosPDF(startStr, endStr) {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   doc.setFont('helvetica','normal');
   const blue = [0, 64, 192];
   const red = [200, 0, 0];
