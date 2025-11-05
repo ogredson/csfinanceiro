@@ -96,7 +96,7 @@ function getMonthNamePtBr(month) {
 async function gerarCalendarioRecebimentosPDF(startStr, endStr) {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   doc.setFont('helvetica','normal');
   const blue = [0, 64, 192];
   const margin = 24;
@@ -226,67 +226,7 @@ async function gerarCalendarioRecebimentosPDF(startStr, endStr) {
     doc.text(`Total do mês (${dateField === 'data_recebimento' ? 'por recebimento' : 'por vencimento'}): ${formatCurrency(totalMes)} / Quantidade de recebimentos: ${qtdMes}`,
       margin, footerY);
 
-    // Página de lista do mês
-    doc.addPage('a4','landscape');
-    doc.setTextColor(...blue); doc.setFontSize(16);
-    doc.text(`Relação de Recebimentos - ${getMonthNamePtBr(m)} de ${y}`, pageWidth / 2, margin + 10, { align: 'center' });
-    const cols = [
-      { label: 'Cliente', width: 200 },
-      { label: 'Descrição', width: 320 },
-      { label: 'Data', width: 90 },
-      { label: 'Valor', width: 110 },
-      { label: 'Status', width: 74 },
-    ];
-    const colX = []; { let acc = margin; for (let i = 0; i < cols.length; i++) { colX.push(acc); acc += cols[i].width; } }
-    const tableTop = margin + 34;
-    // Cabeçalho da tabela
-    doc.setFontSize(11); doc.setTextColor(...blue);
-    for (let i = 0; i < cols.length; i++) { doc.text(cols[i].label, colX[i] + 3, tableTop); }
-    doc.setDrawColor(...blue); doc.line(margin, tableTop + 4, pageWidth - margin, tableTop + 4);
-
-    const sorted = [...rowsMes].sort((a,b)=>((a[dateField]||'').localeCompare(b[dateField]||'')));
-    doc.setTextColor(0,0,0); doc.setFontSize(10);
-    let yList = tableTop + 16;
-    const makeHeader = () => {
-      doc.setTextColor(...blue); doc.setFontSize(16);
-      doc.text(`Relação de Recebimentos - ${getMonthNamePtBr(m)} de ${y}`, pageWidth / 2, margin + 10, { align: 'center' });
-      doc.setFontSize(11); doc.setTextColor(...blue);
-      for (let i = 0; i < cols.length; i++) { doc.text(cols[i].label, colX[i] + 3, tableTop); }
-      doc.setDrawColor(...blue); doc.line(margin, tableTop + 4, pageWidth - margin, tableTop + 4);
-      doc.setTextColor(0,0,0); doc.setFontSize(10);
-      yList = tableTop + 16;
-    };
-
-    for (let idxRow = 0; idxRow < sorted.length; idxRow++) {
-      const r = sorted[idxRow];
-      const nome = clienteNome(r.cliente_id);
-      const desc = r.descricao || '—';
-      const dateStr = r[dateField] || '';
-      const fmt = (dateStr && dateStr.includes('-')) ? `${dateStr.split('-')[2]}/${dateStr.split('-')[1]}/${dateStr.split('-')[0]}` : '—';
-      const valor = Number(dateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
-      const status = r.status || '—';
-      const nomeLines = doc.splitTextToSize(nome, cols[0].width - 6);
-      const descLines = doc.splitTextToSize(desc, cols[1].width - 6);
-      const rowLines = Math.max(nomeLines.length, descLines.length);
-      const lineHeight = 12;
-      const padY = 10;
-      const rowH = padY + lineHeight * rowLines;
-
-      if (yList + rowH + 8 > pageHeight - margin) { doc.addPage('a4','landscape'); makeHeader(); }
-
-      if (idxRow % 2 === 1) {
-        doc.setFillColor(240,240,240);
-        doc.rect(margin, yList - 2, (pageWidth - margin) - margin, rowH + 4, 'F');
-      }
-
-      for (let i = 0; i < nomeLines.length; i++) { doc.text(nomeLines[i], colX[0] + 3, yList + padY + i*lineHeight); }
-      for (let i = 0; i < descLines.length; i++) { doc.text(descLines[i], colX[1] + 3, yList + padY + i*lineHeight); }
-      const yBase = yList + padY + lineHeight - 2;
-      doc.text(fmt, colX[2] + 3, yBase);
-      doc.text(formatCurrency(valor), colX[3] + 3, yBase);
-      doc.text(status, colX[4] + 3, yBase);
-      yList += rowH + 6;
-    }
+    // (Relatório mensal separado — removido daqui)
   });
 
   const fname = `calendario_recebimentos_${startStr}_a_${endStr}.pdf`;
@@ -297,7 +237,7 @@ async function gerarCalendarioRecebimentosPDF(startStr, endStr) {
 async function gerarCalendarioPagamentosPDF(startStr, endStr) {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   doc.setFont('helvetica','normal');
   const blue = [0, 64, 192];
   const red = [200, 0, 0];
@@ -426,69 +366,7 @@ async function gerarCalendarioPagamentosPDF(startStr, endStr) {
     doc.text(`Total do mês (${dateField === 'data_pagamento' ? 'por pagamento' : 'por vencimento'}): ${formatCurrency(totalMes)} / Quantidade de pagamentos: ${qtdMes}`,
       margin, footerY);
 
-    // Página de lista do mês
-    doc.addPage('a4','landscape');
-    doc.setTextColor(...blue); doc.setFontSize(16);
-    doc.text(`Relação de Pagamentos - ${getMonthNamePtBr(m)} de ${y}`, pageWidth / 2, margin + 10, { align: 'center' });
-    const cols = [
-      { label: 'Fornecedor', width: 200 },
-      { label: 'Descrição', width: 320 },
-      { label: 'Data', width: 90 },
-      { label: 'Valor', width: 110 },
-      { label: 'Status', width: 74 },
-    ];
-    const colX = []; { let acc = margin; for (let i = 0; i < cols.length; i++) { colX.push(acc); acc += cols[i].width; } }
-    const tableTop = margin + 34;
-    // Cabeçalho da tabela
-    doc.setFontSize(11); doc.setTextColor(...blue);
-    for (let i = 0; i < cols.length; i++) { doc.text(cols[i].label, colX[i] + 3, tableTop); }
-    doc.setDrawColor(...blue); doc.line(margin, tableTop + 4, pageWidth - margin, tableTop + 4);
-
-    const sorted = [...rowsMes].sort((a,b)=>((a[dateField]||'').localeCompare(b[dateField]||'')));
-    doc.setTextColor(0,0,0); doc.setFontSize(10);
-    let yList = tableTop + 16;
-    const makeHeader = () => {
-      doc.setTextColor(...blue); doc.setFontSize(16);
-      doc.text(`Relação de Pagamentos - ${getMonthNamePtBr(m)} de ${y}`, pageWidth / 2, margin + 10, { align: 'center' });
-      doc.setFontSize(11); doc.setTextColor(...blue);
-      for (let i = 0; i < cols.length; i++) { doc.text(cols[i].label, colX[i] + 3, tableTop); }
-      doc.setDrawColor(...blue); doc.line(margin, tableTop + 4, pageWidth - margin, tableTop + 4);
-      doc.setTextColor(0,0,0); doc.setFontSize(10);
-      yList = tableTop + 16;
-    };
-
-    for (let idxRow = 0; idxRow < sorted.length; idxRow++) {
-      const p = sorted[idxRow];
-      const nome = fornecedorNome(p.fornecedor_id);
-      const desc = p.descricao || '—';
-      const dateStr = p[dateField] || '';
-      const fmt = (dateStr && dateStr.includes('-')) ? `${dateStr.split('-')[2]}/${dateStr.split('-')[1]}/${dateStr.split('-')[0]}` : '—';
-      const valor = Number(dateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0));
-      const status = p.status || '—';
-      const nomeLines = doc.splitTextToSize(nome, cols[0].width - 6);
-      const descLines = doc.splitTextToSize(desc, cols[1].width - 6);
-      const rowLines = Math.max(nomeLines.length, descLines.length);
-      const lineHeight = 12;
-      const padY = 10;
-      const rowH = padY + lineHeight * rowLines;
-
-      if (yList + rowH + 8 > pageHeight - margin) { doc.addPage('a4','landscape'); makeHeader(); }
-
-      // fundo alternado para melhor visualização
-      if (idxRow % 2 === 1) {
-        doc.setFillColor(240,240,240);
-        doc.rect(margin, yList - 2, (pageWidth - margin) - margin, rowH + 4, 'F');
-      }
-
-      // imprime a linha (com quebras), alinhando baseline com as demais colunas
-      for (let i = 0; i < nomeLines.length; i++) { doc.text(nomeLines[i], colX[0] + 3, yList + padY + i*lineHeight); }
-      for (let i = 0; i < descLines.length; i++) { doc.text(descLines[i], colX[1] + 3, yList + padY + i*lineHeight); }
-      const yBase = yList + padY + lineHeight - 2;
-      doc.text(fmt, colX[2] + 3, yBase);
-      doc.text(formatCurrency(valor), colX[3] + 3, yBase);
-      doc.text(status, colX[4] + 3, yBase);
-      yList += rowH + 6;
-    }
+    // (Relatório mensal separado — removido daqui)
   });
 
   const fname = `calendario_pagamentos_${startStr}_a_${endStr}.pdf`;
@@ -522,6 +400,22 @@ export async function renderRelatorios(app) {
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <button id="btnCalPag" class="btn btn-outline">Gerar Calendário de Pagamentos</button>
             <button id="btnCalRec" class="btn btn-outline">Gerar Calendário de Recebimentos</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card area" data-area-id="operacionais">
+        <div class="toolbar" style="justify-content:space-between;">
+          <h3>Relatórios Operacionais</h3>
+          <button class="btn btn-outline" data-toggle="operacionais">Mostrar/Ocultar</button>
+        </div>
+        <div class="area-body" id="areaBody_operacionais" style="display:block;">
+          <div class="muted" style="margin-bottom:8px;">Gere relações de Recebimentos e Pagamentos separadas dos calendários.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button id="btnRelRec" class="btn btn-outline">Relação de Recebimentos</button>
+            <button id="btnRelRecCSV" class="btn btn-outline">Exportar CSV (Recebimentos)</button>
+            <button id="btnRelPag" class="btn btn-outline">Relação de Pagamentos</button>
+            <button id="btnRelPagCSV" class="btn btn-outline">Exportar CSV (Pagamentos)</button>
           </div>
         </div>
       </div>
@@ -615,7 +509,7 @@ export async function renderRelatorios(app) {
   const lsKey = 'REL_SECTIONS_OPEN';
   const openSet = new Set(JSON.parse(localStorage.getItem(lsKey) || '[]'));
   function applyOpenState() {
-    ['calendarios','fluxo','participacao','extras'].forEach(id => {
+    ['calendarios','operacionais','fluxo','participacao','extras'].forEach(id => {
       const body = document.getElementById(`areaBody_${id}`);
       if (!body) return;
       body.style.display = openSet.has(id) ? 'block' : 'none';
@@ -630,7 +524,7 @@ export async function renderRelatorios(app) {
     btn.addEventListener('click', () => toggleArea(btn.getAttribute('data-toggle')));
   });
   // inicializa (default: mostrar todas se nenhuma preferência)
-  if (openSet.size === 0) { ['calendarios','fluxo'].forEach(id => openSet.add(id)); localStorage.setItem(lsKey, JSON.stringify(Array.from(openSet))); }
+  if (openSet.size === 0) { ['calendarios','operacionais','fluxo'].forEach(id => openSet.add(id)); localStorage.setItem(lsKey, JSON.stringify(Array.from(openSet))); }
   applyOpenState();
 
   // Eventos dos botões de topo
@@ -647,6 +541,44 @@ export async function renderRelatorios(app) {
     const dtFim = document.getElementById('dtFim').value;
     window._campoDataRelatorios = document.getElementById('campoData').value;
     try { await gerarCalendarioRecebimentosPDF(dtInicio, dtFim); } catch (e) { console.error(e); showToast('Falha ao gerar PDF', 'error'); }
+  });
+
+  // Botões de Relatórios Operacionais
+  document.getElementById('btnRelRec').addEventListener('click', async () => {
+    setCampoDataLabels('recebimentos');
+    const dtInicio = document.getElementById('dtInicio').value;
+    const dtFim = document.getElementById('dtFim').value;
+    window._campoDataRelatorios = document.getElementById('campoData').value;
+    try { await gerarRelacaoRecebimentosPDF(dtInicio, dtFim); } catch (e) { console.error(e); showToast('Falha ao gerar PDF', 'error'); }
+  });
+  document.getElementById('btnRelPag').addEventListener('click', async () => {
+    setCampoDataLabels('pagamentos');
+    const dtInicio = document.getElementById('dtInicio').value;
+    const dtFim = document.getElementById('dtFim').value;
+    window._campoDataRelatorios = document.getElementById('campoData').value;
+    try { await gerarRelacaoPagamentosPDF(dtInicio, dtFim); } catch (e) { console.error(e); showToast('Falha ao gerar PDF', 'error'); }
+  });
+  document.getElementById('btnRelRecCSV').addEventListener('click', async () => {
+    setCampoDataLabels('recebimentos');
+    const startStr = document.getElementById('dtInicio').value;
+    const endStr = document.getElementById('dtFim').value;
+    window._campoDataRelatorios = document.getElementById('campoData').value;
+    try {
+      const rows = await buildRelacaoRecebimentosCSV(startStr, endStr);
+      exportToCSV(`relacao_recebimentos_${startStr}_a_${endStr}.csv`, rows);
+      showToast('CSV de relação de recebimentos exportado', 'success');
+    } catch (e) { console.error(e); showToast('Falha ao exportar CSV', 'error'); }
+  });
+  document.getElementById('btnRelPagCSV').addEventListener('click', async () => {
+    setCampoDataLabels('pagamentos');
+    const startStr = document.getElementById('dtInicio').value;
+    const endStr = document.getElementById('dtFim').value;
+    window._campoDataRelatorios = document.getElementById('campoData').value;
+    try {
+      const rows = await buildRelacaoPagamentosCSV(startStr, endStr);
+      exportToCSV(`relacao_pagamentos_${startStr}_a_${endStr}.csv`, rows);
+      showToast('CSV de relação de pagamentos exportado', 'success');
+    } catch (e) { console.error(e); showToast('Falha ao exportar CSV', 'error'); }
   });
 
   document.getElementById('btnFluxo').addEventListener('click', async () => {
@@ -913,7 +845,7 @@ async function gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, rec
 async function gerarFluxoCaixaPDF(startStr, endStr, saldoInicial, tipoRelatorio = 'sintetico') {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   doc.setFont('helvetica','normal');
   const blue = [0, 64, 192];
   const red = [200, 0, 0];
@@ -1691,4 +1623,239 @@ function renderParticipacaoTabela(container, dados) {
     </table>
   `;
   container.innerHTML = criteria + header + table;
+}
+
+// Funções adicionadas ao final para geração dos relatórios operacionais
+async function gerarRelacaoRecebimentosPDF(startStr, endStr) {
+  const { jsPDF } = window.jspdf || {};
+  if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  doc.setFont('helvetica','normal');
+  const blue = [0, 64, 192];
+  const margin = 24;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const { data: recebimentos } = await db.select('recebimentos', { select: 'id, cliente_id, descricao, valor_esperado, valor_recebido, status, data_vencimento, data_recebimento' });
+  const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
+  const clienteNome = (id) => (clientes||[]).find(c => c.id === id)?.nome || '—';
+
+  const campoSel = window._campoDataRelatorios || 'data_vencimento';
+  const dateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
+  const meses = buildMonthArray(startStr, endStr);
+
+  const baseCols = [
+    { label: 'Cliente', width: 200 },
+    { label: 'Descrição', width: 320 },
+    { label: 'Data', width: 90 },
+    { label: 'Valor', width: 110 },
+    { label: 'Status', width: 74 },
+  ];
+  const availWidth = pageWidth - margin * 2;
+  const sumBase = baseCols.reduce((a,c)=>a+c.width,0);
+  const scale = availWidth / sumBase;
+  const cols = baseCols.map(c => ({ label: c.label, width: Math.floor(c.width * scale) }));
+
+  const header = (m, y) => {
+    doc.setTextColor(...blue); doc.setFontSize(16);
+    doc.text(`Relação de Recebimentos - ${getMonthNamePtBr(m)} de ${y}`, pageWidth / 2, margin + 10, { align: 'center' });
+    const colX = []; { let acc = margin; for (let i = 0; i < cols.length; i++) { colX.push(acc); acc += cols[i].width; } }
+    const tableTop = margin + 34;
+    doc.setFontSize(11); doc.setTextColor(...blue);
+    for (let i = 0; i < cols.length; i++) { doc.text(cols[i].label, colX[i] + 3, tableTop); }
+    doc.setDrawColor(...blue); doc.line(margin, tableTop + 4, pageWidth - margin, tableTop + 4);
+    return { colX, tableTop };
+  };
+
+  meses.forEach((mesObj, idx) => {
+    if (idx > 0) doc.addPage('a4','portrait');
+    const y = mesObj.year, m = mesObj.month;
+    const { colX, tableTop } = header(m, y);
+    const mmStr = String(m).padStart(2,'0');
+    const rowsMes = (recebimentos||[]).filter(r => ((r[dateField]||'').startsWith(`${y}-${mmStr}`)));
+    const sorted = [...rowsMes].sort((a,b)=>((a[dateField]||'').localeCompare(b[dateField]||'')));
+
+    let yList = tableTop + 16;
+    doc.setTextColor(0,0,0); doc.setFontSize(9);
+    const lineHeight = 12;
+    const padY = 10;
+
+    for (let idxRow = 0; idxRow < sorted.length; idxRow++) {
+      const r = sorted[idxRow];
+      const nome = clienteNome(r.cliente_id);
+      const desc = r.descricao || '—';
+      const dateStr = r[dateField] || '';
+      const fmt = (dateStr && dateStr.includes('-')) ? `${dateStr.split('-')[2]}/${dateStr.split('-')[1]}/${dateStr.split('-')[0]}` : '—';
+      const valor = Number(dateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
+      const status = r.status || '—';
+      const nomeLines = doc.splitTextToSize(nome, cols[0].width - 6);
+      const descLines = doc.splitTextToSize(desc, cols[1].width - 6);
+      const rowLines = Math.max(nomeLines.length, descLines.length);
+      const rowH = padY + lineHeight * rowLines;
+
+      if (yList + rowH + 8 > pageHeight - margin) { doc.addPage('a4','portrait'); const h = header(m, y); doc.setTextColor(0,0,0); doc.setFontSize(9); yList = h.tableTop + 16; }
+
+      if (idxRow % 2 === 1) { doc.setFillColor(240,240,240); doc.rect(margin, yList - 2, (pageWidth - margin) - margin, rowH + 4, 'F'); }
+      for (let i = 0; i < nomeLines.length; i++) { doc.text(nomeLines[i], colX[0] + 3, yList + padY + i*lineHeight); }
+      for (let i = 0; i < descLines.length; i++) { doc.text(descLines[i], colX[1] + 3, yList + padY + i*lineHeight); }
+      const yBase = yList + padY + lineHeight - 2;
+      doc.text(fmt, colX[2] + 3, yBase);
+      doc.text(formatCurrency(valor), colX[3] + 3, yBase);
+      doc.text(status, colX[4] + 3, yBase);
+      yList += rowH + 6;
+    }
+    // Rodapé com totais do mês
+    const totalMes = sum(rowsMes.map(r => Number(dateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0))));
+    const qtdMes = rowsMes.length;
+    const footerY = pageHeight - margin - 8;
+    doc.setTextColor(...blue); doc.setFontSize(10);
+    doc.text(`Total do mês (${dateField === 'data_recebimento' ? 'por recebimento' : 'por vencimento'}): ${formatCurrency(totalMes)} / Quantidade de recebimentos: ${qtdMes}`,
+      margin, footerY);
+  });
+
+  const fname = `relacao_recebimentos_${startStr}_a_${endStr}.pdf`;
+  doc.save(fname);
+  showToast('Relação de recebimentos gerada em PDF', 'success');
+}
+
+async function gerarRelacaoPagamentosPDF(startStr, endStr) {
+  const { jsPDF } = window.jspdf || {};
+  if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  doc.setFont('helvetica','normal');
+  const blue = [0, 64, 192];
+  const margin = 24;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const { data: pagamentos } = await db.select('pagamentos', { select: 'id, fornecedor_id, descricao, valor_esperado, valor_pago, status, data_vencimento, data_pagamento' });
+  const { data: fornecedores } = await db.select('fornecedores', { select: 'id, nome' });
+  const fornecedorNome = (id) => (fornecedores||[]).find(f => f.id === id)?.nome || '—';
+
+  const dateField = window._campoDataRelatorios || 'data_vencimento';
+  const meses = buildMonthArray(startStr, endStr);
+
+  const baseCols = [
+    { label: 'Fornecedor', width: 200 },
+    { label: 'Descrição', width: 320 },
+    { label: 'Data', width: 90 },
+    { label: 'Valor', width: 110 },
+    { label: 'Status', width: 74 },
+  ];
+  const availWidth2 = pageWidth - margin * 2;
+  const sumBase2 = baseCols.reduce((a,c)=>a+c.width,0);
+  const scale2 = availWidth2 / sumBase2;
+  const cols = baseCols.map(c => ({ label: c.label, width: Math.floor(c.width * scale2) }));
+
+  const header = (m, y) => {
+    doc.setTextColor(...blue); doc.setFontSize(16);
+    doc.text(`Relação de Pagamentos - ${getMonthNamePtBr(m)} de ${y}`, pageWidth / 2, margin + 10, { align: 'center' });
+    const colX = []; { let acc = margin; for (let i = 0; i < cols.length; i++) { colX.push(acc); acc += cols[i].width; } }
+    const tableTop = margin + 34;
+    doc.setFontSize(11); doc.setTextColor(...blue);
+    for (let i = 0; i < cols.length; i++) { doc.text(cols[i].label, colX[i] + 3, tableTop); }
+    doc.setDrawColor(...blue); doc.line(margin, tableTop + 4, pageWidth - margin, tableTop + 4);
+    return { colX, tableTop };
+  };
+
+  meses.forEach((mesObj, idx) => {
+    if (idx > 0) doc.addPage('a4','portrait');
+    const y = mesObj.year, m = mesObj.month;
+    const { colX, tableTop } = header(m, y);
+    const mmStr = String(m).padStart(2,'0');
+    const rowsMes = (pagamentos||[]).filter(p => ((p[dateField]||'').startsWith(`${y}-${mmStr}`)));
+    const sorted = [...rowsMes].sort((a,b)=>((a[dateField]||'').localeCompare(b[dateField]||'')));
+
+    let yList = tableTop + 16;
+    doc.setTextColor(0,0,0); doc.setFontSize(9);
+    const lineHeight = 12;
+    const padY = 10;
+
+    for (let idxRow = 0; idxRow < sorted.length; idxRow++) {
+      const p = sorted[idxRow];
+      const nome = fornecedorNome(p.fornecedor_id);
+      const desc = p.descricao || '—';
+      const dateStr = p[dateField] || '';
+      const fmt = (dateStr && dateStr.includes('-')) ? `${dateStr.split('-')[2]}/${dateStr.split('-')[1]}/${dateStr.split('-')[0]}` : '—';
+      const valor = Number(dateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0));
+      const status = p.status || '—';
+      const nomeLines = doc.splitTextToSize(nome, cols[0].width - 6);
+      const descLines = doc.splitTextToSize(desc, cols[1].width - 6);
+      const rowLines = Math.max(nomeLines.length, descLines.length);
+      const rowH = padY + lineHeight * rowLines;
+
+      if (yList + rowH + 8 > pageHeight - margin) { doc.addPage('a4','portrait'); const h = header(m, y); doc.setTextColor(0,0,0); doc.setFontSize(9); yList = h.tableTop + 16; }
+
+      if (idxRow % 2 === 1) { doc.setFillColor(240,240,240); doc.rect(margin, yList - 2, (pageWidth - margin) - margin, rowH + 4, 'F'); }
+      for (let i = 0; i < nomeLines.length; i++) { doc.text(nomeLines[i], colX[0] + 3, yList + padY + i*lineHeight); }
+      for (let i = 0; i < descLines.length; i++) { doc.text(descLines[i], colX[1] + 3, yList + padY + i*lineHeight); }
+      const yBase = yList + padY + lineHeight - 2;
+      doc.text(fmt, colX[2] + 3, yBase);
+      doc.text(formatCurrency(valor), colX[3] + 3, yBase);
+      doc.text(status, colX[4] + 3, yBase);
+      yList += rowH + 6;
+    }
+    // Rodapé com totais do mês
+    const totalMes = sum(rowsMes.map(p => Number(dateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0))));
+    const qtdMes = rowsMes.length;
+    const footerY = pageHeight - margin - 8;
+    doc.setTextColor(...blue); doc.setFontSize(10);
+    doc.text(`Total do mês (${dateField === 'data_pagamento' ? 'por pagamento' : 'por vencimento'}): ${formatCurrency(totalMes)} / Quantidade de pagamentos: ${qtdMes}`,
+      margin, footerY);
+  });
+
+  const fname = `relacao_pagamentos_${startStr}_a_${endStr}.pdf`;
+  doc.save(fname);
+  showToast('Relação de pagamentos gerada em PDF', 'success');
+}
+
+// Helpers para exportação CSV das relações
+async function buildRelacaoRecebimentosCSV(startStr, endStr) {
+  const campoSel = window._campoDataRelatorios || 'data_vencimento';
+  const dateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
+  const { data: recebimentos } = await db.select('recebimentos', { select: 'cliente_id, descricao, valor_esperado, valor_recebido, status, data_vencimento, data_recebimento' });
+  const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
+  const nomeCliente = (id) => (clientes||[]).find(c => c.id === id)?.nome || '—';
+  const inRange = (ds) => !!ds && ds >= startStr && ds <= endStr;
+  const fmtBR = (s) => { if (!s) return '—'; const [y,m,d] = String(s).split('-'); return `${d}/${m}/${y}`; };
+  const rows = [];
+  (recebimentos||[]).forEach(r => {
+    const ds = r[dateField];
+    if (inRange(ds)) {
+      const valor = Number(dateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
+      rows.push({
+        Cliente: nomeCliente(r.cliente_id),
+        Descricao: r.descricao || '—',
+        Data: fmtBR(ds),
+        Valor: valor,
+        Status: r.status || 'pendente',
+      });
+    }
+  });
+  return rows;
+}
+
+async function buildRelacaoPagamentosCSV(startStr, endStr) {
+  const campoSel = window._campoDataRelatorios || 'data_vencimento';
+  const dateField = (campoSel === 'data_pagamento') ? 'data_pagamento' : 'data_vencimento';
+  const { data: pagamentos } = await db.select('pagamentos', { select: 'fornecedor_id, descricao, valor_esperado, valor_pago, status, data_vencimento, data_pagamento' });
+  const { data: fornecedores } = await db.select('fornecedores', { select: 'id, nome' });
+  const nomeFornecedor = (id) => (fornecedores||[]).find(f => f.id === id)?.nome || '—';
+  const inRange = (ds) => !!ds && ds >= startStr && ds <= endStr;
+  const fmtBR = (s) => { if (!s) return '—'; const [y,m,d] = String(s).split('-'); return `${d}/${m}/${y}`; };
+  const rows = [];
+  (pagamentos||[]).forEach(p => {
+    const ds = p[dateField];
+    if (inRange(ds)) {
+      const valor = Number(dateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0));
+      rows.push({
+        Fornecedor: nomeFornecedor(p.fornecedor_id),
+        Descricao: p.descricao || '—',
+        Data: fmtBR(ds),
+        Valor: valor,
+        Status: p.status || 'pendente',
+      });
+    }
+  });
+  return rows;
 }
