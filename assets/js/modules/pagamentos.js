@@ -23,7 +23,7 @@ let LOOKUPS = null;
 async function ensureLookups() {
   if (LOOKUPS) return LOOKUPS;
   const [forRes, catRes, formaRes] = await Promise.all([
-    db.select('fornecedores', { select: 'id, nome, observacao', orderBy: { column: 'nome', ascending: true } }),
+    db.select('fornecedores', { select: 'id, nome, documento, observacao', orderBy: { column: 'nome', ascending: true } }),
     db.select('categorias', { select: 'id, nome', orderBy: { column: 'nome', ascending: true } }),
     db.select('formas_pagamento', { select: 'id, nome', orderBy: { column: 'nome', ascending: true } }),
   ]);
@@ -31,10 +31,11 @@ async function ensureLookups() {
   const categorias = catRes.data || [];
   const formas = formaRes.data || [];
   const mapFor = new Map(fornecedores.map(f => [f.id, f.nome]));
+  const mapForDoc = new Map(fornecedores.map(f => [f.id, (f.documento || '')]));
   const mapForObs = new Map(fornecedores.map(f => [f.id, (f.observacao || '')]));
   const mapCat = new Map(categorias.map(c => [c.id, c.nome]));
   const mapForma = new Map(formas.map(f => [f.id, f.nome]));
-  LOOKUPS = { fornecedores, categorias, formas, mapFor, mapForObs, mapCat, mapForma };
+  LOOKUPS = { fornecedores, categorias, formas, mapFor, mapForDoc, mapForObs, mapCat, mapForma };
   return LOOKUPS;
 }
 
@@ -269,6 +270,162 @@ async function markPago(row) {
   const { error } = await db.update('pagamentos', row.id, { status: 'pago', valor_pago: valor, data_pagamento: formatDate() });
   if (error) showToast(error.message || 'Erro ao marcar pago', 'error'); else showToast('Marcado como pago', 'success');
   window.location.hash = '#/pagamentos';
+}
+
+function gerarComprovantePagamento(row, extra = {}) {
+  const lookups = LOOKUPS || {};
+  const fornecedorNome = extra.fornecedor_nome || lookups.mapFor?.get?.(row.fornecedor_id) || '—';
+  const fornecedorDoc = extra.fornecedor_documento || lookups.mapForDoc?.get?.(row.fornecedor_id) || '';
+  const formaNome = extra.forma_pagamento_nome || lookups.mapForma?.get?.(row.forma_pagamento_id) || '—';
+  const valorPago = Number(extra.valor_pago ?? row.valor_pago ?? row.valor_esperado ?? 0);
+  const dataPag = extra.data_pagamento || row.data_pagamento || formatDate();
+  const descricaoPrincipal = (row.descricao || '').toString();
+  const descComprovante = (extra.descricao_comprovante || row.observacoes || '').toString();
+
+  const w = window.open('', '_blank');
+  if (!w) { showToast('Não foi possível abrir a janela do comprovante', 'error'); return; }
+  w.document.write(`
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Comprovante</title>
+        <style>
+          body{font-family:Arial, sans-serif;color:#111;margin:0;padding:24px}
+          .container{max-width:820px;margin:0 auto}
+          .header{border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:12px}
+          .company{font-size:14px;font-weight:600}
+          .small{font-size:12px;color:#4b5563}
+          h1{font-size:20px;margin:12px 0}
+          .id{margin:8px 0;font-size:12px;color:#374151}
+          .divider{border-top:1px dashed #9ca3af;margin:10px 0}
+          .section{margin:14px 0}
+          .section h3{margin:0 0 6px 0;font-size:14px}
+          .block{padding:8px;border:1px solid #e5e7eb;border-radius:6px}
+          table{width:100%;border-collapse:collapse;margin-top:8px}
+          th,td{border:1px solid #e5e7eb;padding:12px;text-align:left;vertical-align:top}
+          th{background:#f3f4f6;font-weight:600}
+          .right{text-align:right}
+          .footer{text-align:center;margin-top:28px;color:#4b5563;font-size:12px}
+          .footer .paydate{font-size:16px;color:#111;font-weight:600}
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="company">CONNECT SOFT SERVIÇOS LTDA</div>
+            <div class="small">Rua D (Lot Centro Sul), 81 – Sala 01 Parangaba – Fortaleza – CE – Cep: 60.740-145</div>
+            <div class="small">CNPJ: 03.609.246/0001-53</div>
+            <h1>COMPROVANTE DE PAGAMENTO</h1>
+          </div>
+          <div class="id"><strong>ID:</strong> ${row.id}</div>
+          <div class="divider"></div>
+
+          <div class="section">
+            <h3>Dados do Fornecedor</h3>
+            <div class="block">
+              <p><strong>${fornecedorNome}</strong></p>
+              <p><strong>CNPJ/CPF:</strong> ${fornecedorDoc || '—'}</p>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Descrição:</h3>
+            <div class="block">${descricaoPrincipal || ''}</div>
+          </div>
+
+          <div class="section">
+            <h3>Detalhes do Pagamento</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Forma</th>
+                  <th>Data</th>
+                  <th class="right">Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>${formaNome}</td>
+                  <td>${dataPag}</td>
+                  <td class="right">${formatCurrency(valorPago)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section">
+            <h3>Observações</h3>
+            <div class="block">${descComprovante || ''}</div>
+          </div>
+
+          <div class="footer">
+            <div class="paydate">Pagamento realizado em ${dataPag}</div>
+            <div>Documento gerado automaticamente pelo sistema financeiro.</div>
+          </div>
+        </div>
+        <script>window.print();</script>
+      </body>
+    </html>
+  `);
+  w.document.close();
+}
+
+async function openPago(row) {
+  const lookups = await ensureLookups();
+  const initial = {
+    fornecedor_nome: lookups.mapFor.get(row.fornecedor_id) || '',
+    descricao: row.descricao || '',
+    data_vencimento: row.data_vencimento || '',
+    forma_pagamento_nome: lookups.mapForma.get(row.forma_pagamento_id) || '',
+    valor_esperado: row.valor_esperado || 0,
+    data_pagamento: row.data_pagamento || formatDate(),
+    valor_pago: row.valor_pago || row.valor_esperado || 0,
+    observacoes: row.observacoes || ''
+  };
+  const content = `
+    <form id="pagbForm">
+      <div class="form-row">
+        <div class="field"><label>Fornecedor</label><input id="fornecedor_nome" value="${initial.fornecedor_nome}" disabled/></div>
+        <div class="field"><label>Descrição</label><input id="descricao" value="${initial.descricao}" disabled/></div>
+        <div class="field"><label>Data do Vencimento</label><input type="date" id="data_vencimento" value="${initial.data_vencimento}" disabled/></div>
+        <div class="field"><label>Forma de Pagamento</label>
+          <input id="forma_nome" list="pagFormaOptions" value="${initial.forma_pagamento_nome}" placeholder="Selecione a forma" />
+          <datalist id="pagFormaOptions">${(lookups.formas||[]).map(f => `<option value="${f.nome}"></option>`).join('')}</datalist>
+        </div>
+        <div class="field"><label>Valor a Pagar</label><input id="valor_esperado" value="${formatCurrency(initial.valor_esperado)}" disabled/></div>
+        <div class="field"><label>Data do Pagamento</label><input type="date" id="data_pagamento" value="${initial.data_pagamento}" /></div>
+        <div class="field"><label>Valor Pago</label><input id="valor_pago" value="${formatCurrency(initial.valor_pago)}" /></div>
+        <div class="field" style="grid-column:1/-1"><label>Descrição para o Comprovante</label><textarea id="descricao_comprovante" rows="3">${initial.observacoes}</textarea></div>
+      </div>
+    </form>
+  `;
+  const { modal, close } = createModal({ title: 'Dar baixa no pagamento', content, actions: [
+    { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
+    { label: 'Atualizar', className: 'btn btn-primary', onClick: async ({ close }) => {
+      const formaNome = modal.querySelector('#forma_nome')?.value?.trim();
+      const formaId = (lookups.formas||[]).find(f => f.nome === formaNome)?.id || null;
+      if (formaNome && !formaId) { showToast('Selecione uma forma de pagamento válida da lista', 'error'); return; }
+      const dataPag = modal.querySelector('#data_pagamento')?.value || formatDate();
+      const valorPagStr = modal.querySelector('#valor_pago')?.value || '0';
+      const valorPag = parseCurrency(valorPagStr);
+      const descComp = modal.querySelector('#descricao_comprovante')?.value || null;
+      const payload = { status: 'pago', data_pagamento: dataPag, valor_pago: valorPag, observacoes: descComp };
+      if (formaId) payload.forma_pagamento_id = formaId;
+      const { error } = await db.update('pagamentos', row.id, payload);
+      if (error) { showToast(error.message||'Erro ao atualizar pagamento', 'error'); return; }
+      showToast('Pagamento atualizado como "pago"', 'success');
+      close();
+      window.location.hash = '#/pagamentos';
+    }},
+    { label: 'Emitir Comprovante', className: 'btn btn-success', onClick: () => {
+      const formaNome = modal.querySelector('#forma_nome')?.value?.trim() || (lookups.mapForma.get(row.forma_pagamento_id)||'');
+      const dataPag = modal.querySelector('#data_pagamento')?.value || formatDate();
+      const valorPagStr = modal.querySelector('#valor_pago')?.value || '0';
+      const valorPag = parseCurrency(valorPagStr);
+      const descComp = modal.querySelector('#descricao_comprovante')?.value || '';
+      gerarComprovantePagamento(row, { fornecedor_nome: lookups.mapFor.get(row.fornecedor_id)||'', fornecedor_documento: lookups.mapForDoc.get(row.fornecedor_id)||'', forma_pagamento_nome: formaNome, valor_pago: valorPag, data_pagamento: dataPag, descricao_comprovante: descComp });
+    }}
+  ]});
 }
 
 async function relatorioDespesas(rows) {
@@ -818,7 +975,7 @@ export async function renderPagamentos(app) {
         { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r) },
         { label: 'Clonar', className: 'btn btn-outline', onClick: r => openClone(r) },
         { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const ok = confirm(`Confirma a exclusão de "${r.descricao}"? Esta ação não pode ser desfeita.`); if (!ok) return; const { error } = await db.remove('pagamentos', r.id); if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); load(); } } },
-        { label: 'Pago', className: 'btn btn-success', onClick: r => markPago(r) },
+        { label: 'Pago', className: 'btn btn-success', onClick: r => openPago(r) },
       ],
     });
 
