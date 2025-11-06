@@ -104,6 +104,13 @@ async function gerarEvolucaoReceitasDespesasPDF(startStr, endStr, saldoInicial =
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
+  // Formata datas como dd-mm-aaaa (solicitação do usuário)
+  const formatDateDashedBR = (s) => {
+    if (!s) return '';
+    const [y,m,d] = String(s).split('T')[0].split('-');
+    return `${d}-${m}-${y}`;
+  };
+
   const campoSel = window._campoDataRelatorios || 'data_vencimento';
   const recDateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
   const pagDateField = (campoSel === 'data_pagamento') ? 'data_pagamento' : 'data_vencimento';
@@ -191,34 +198,45 @@ async function gerarEvolucaoReceitasDespesasPDF(startStr, endStr, saldoInicial =
   doc.text(title, margin, margin + 18);
   doc.setFontSize(11);
   const campoLabel = (campoSel === 'data_pagamento') ? 'Por Pagamento/Recebimento' : 'Por Vencimento';
-  doc.text(`Período ${formatDate(startStr)} a ${formatDate(endStr)}`, margin, margin + 36);
-  doc.text(`Campo de data: ${campoLabel}`, margin, margin + 52);
-  doc.text(`Saldo inicial ${formatCurrency(Number(saldoInicial||0))}`, margin, margin + 68);
+  // Período no formato dd-mm-aaaa, com "Campo de data" ao lado (mesma linha)
+  const periodY = margin + 36;
+  doc.text(`Período ${formatDateDashedBR(startStr)} a ${formatDateDashedBR(endStr)}`, margin, periodY);
+  doc.text(`Campo de data: ${campoLabel}`, pageWidth - margin, periodY, { align: 'right' });
+  // Saldo inicial destacado em negrito (linha imediatamente abaixo)
+  doc.setFont('helvetica','bold');
+  doc.text(`Saldo inicial: ${formatCurrency(Number(saldoInicial||0))}`, margin, periodY + 16);
+  doc.setFont('helvetica','normal');
 
   const leftW = 240;
   const rightW = pageWidth - margin*2 - leftW;
   const colW = rightW / Math.max(months.length, 1);
-  let y = margin + 92;
+  // Ajuste de espaçamento superior para ganhar linhas na página
+  let y = margin + 84;
 
   // Cabeçalhos
   doc.setFontSize(10);
   doc.setTextColor(0,0,0);
   doc.text('Receitas', margin, y);
-  doc.setTextColor(blue[0], blue[1], blue[2]);
-  doc.text('Descrição da Receita', margin, y + 16);
-  doc.setTextColor(0,0,0);
+  // Alinha cabeçalhos dos meses com os valores (direita da coluna)
   months.forEach((m, idx) => {
-    const x = margin + leftW + idx*colW + 4;
-    doc.text(monthLabel(m.year, m.month), x, y);
+    const tx = margin + leftW + idx*colW + colW - 4;
+    doc.text(monthLabel(m.year, m.month), tx, y, { align: 'right' });
   });
-  y += 28;
+  // Remove a linha vazia entre "Receitas" e as categorias
+  y += 16;
 
   // Linhas de categorias de receita
   const receitaCatIds = Array.from(receitasCats);
   receitaCatIds.sort((a,b) => (mapCat.get(a)?.nome||'').localeCompare(mapCat.get(b)?.nome||''));
   doc.setTextColor(blue[0], blue[1], blue[2]);
+  let recRowIndex = 0;
   receitaCatIds.forEach(catId => {
     if (y > pageHeight - margin - 140) { doc.addPage(); y = margin + 24; }
+    // Alternância de fundo (cinza/branco) para melhor visualização
+    if (recRowIndex % 2 === 0) {
+      doc.setFillColor(245, 245, 245);
+      doc.rect(margin, y - 12, pageWidth - margin*2, 18, 'F');
+    }
     doc.text(mapCat.get(catId)?.nome || '-', margin, y);
     months.forEach((m, idx) => {
       const key = monthKey(m.year, m.month);
@@ -227,6 +245,7 @@ async function gerarEvolucaoReceitasDespesasPDF(startStr, endStr, saldoInicial =
       doc.text(formatCurrency(v), tx, y, { align: 'right' });
     });
     y += 16;
+    recRowIndex++;
   });
   // Total Receitas Mês
   doc.setTextColor(blue[0], blue[1], blue[2]);
@@ -244,20 +263,25 @@ async function gerarEvolucaoReceitasDespesasPDF(startStr, endStr, saldoInicial =
   doc.setTextColor(0,0,0);
   doc.setFontSize(10);
   doc.text('Despesas', margin, y);
-  doc.setTextColor(red[0], red[1], red[2]);
-  doc.text('Descrição da Despesa', margin, y + 16);
-  doc.setTextColor(0,0,0);
+  // Alinha cabeçalhos dos meses com os valores (direita da coluna)
   months.forEach((m, idx) => {
-    const x = margin + leftW + idx*colW + 4;
-    doc.text(monthLabel(m.year, m.month), x, y);
+    const tx = margin + leftW + idx*colW + colW - 4;
+    doc.text(monthLabel(m.year, m.month), tx, y, { align: 'right' });
   });
-  y += 28;
+  // Remove a linha vazia abaixo de "Despesas"
+  y += 16;
 
   const despesaCatIds = Array.from(despesasCats);
   despesaCatIds.sort((a,b) => (mapCat.get(a)?.nome||'').localeCompare(mapCat.get(b)?.nome||''));
   doc.setTextColor(red[0], red[1], red[2]);
+  let desRowIndex = 0;
   despesaCatIds.forEach(catId => {
     if (y > pageHeight - margin - 140) { doc.addPage(); y = margin + 24; }
+    // Alternância de fundo (cinza/branco) para melhor visualização
+    if (desRowIndex % 2 === 0) {
+      doc.setFillColor(245, 245, 245);
+      doc.rect(margin, y - 12, pageWidth - margin*2, 18, 'F');
+    }
     doc.text(mapCat.get(catId)?.nome || '-', margin, y);
     months.forEach((m, idx) => {
       const key = monthKey(m.year, m.month);
@@ -266,6 +290,7 @@ async function gerarEvolucaoReceitasDespesasPDF(startStr, endStr, saldoInicial =
       doc.text(formatCurrency(v), tx, y, { align: 'right' });
     });
     y += 16;
+    desRowIndex++;
   });
 
   doc.setTextColor(red[0], red[1], red[2]);
@@ -277,7 +302,8 @@ async function gerarEvolucaoReceitasDespesasPDF(startStr, endStr, saldoInicial =
     const tx = margin + leftW + idx*colW + colW - 4;
     doc.text(formatCurrency(v), tx, y, { align: 'right' });
   });
-  y += 28;
+  // Remove a linha vazia após "Total Despesas Mês"
+  y += 16;
 
   doc.setTextColor(blue[0], blue[1], blue[2]);
   doc.setFontSize(11);
@@ -621,7 +647,44 @@ export async function renderRelatorios(app) {
         </div>
         <div class="area-body" id="areaBody_operacionais" style="display:block;">
           <div class="muted" style="margin-bottom:8px;">Gere relações de Recebimentos e Pagamentos separadas dos calendários.</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+            <span class="muted" style="margin-right:8px;">Filtros abaixo se aplicam somente aos relatórios operacionais.</span>
+            <label style="display:inline-flex;align-items:center;gap:6px;">
+              Status (Rec)
+              <select id="opStatusRec" style="width:140px;">
+                <option value="todos" selected>Todos</option>
+                <option value="pendente">Pendente</option>
+                <option value="recebido">Recebido</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;">
+              Tipo (Rec)
+              <select id="opTipoRec" style="width:140px;">
+                <option value="todos" selected>Todos</option>
+                <option value="mensal">Mensal</option>
+                <option value="avulso">Avulso</option>
+                <option value="parcelado">Parcelado</option>
+              </select>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;">
+              Status (Pag)
+              <select id="opStatusPag" style="width:140px;">
+                <option value="todos" selected>Todos</option>
+                <option value="pendente">Pendente</option>
+                <option value="pago">Pago</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;">
+              Tipo (Pag)
+              <select id="opTipoPag" style="width:140px;">
+                <option value="todos" selected>Todos</option>
+                <option value="fixo">Fixo</option>
+                <option value="avulso">Avulso</option>
+                <option value="parcelado">Parcelado</option>
+              </select>
+            </label>
             <button id="btnRelRec" class="btn btn-outline">Relação de Recebimentos</button>
             <button id="btnRelRecCSV" class="btn btn-outline">Exportar CSV (Recebimentos)</button>
             <button id="btnRelPag" class="btn btn-outline">Relação de Pagamentos</button>
@@ -776,14 +839,22 @@ export async function renderRelatorios(app) {
     const dtInicio = document.getElementById('dtInicio').value;
     const dtFim = document.getElementById('dtFim').value;
     window._campoDataRelatorios = document.getElementById('campoData').value;
-    try { await gerarRelacaoRecebimentosPDF(dtInicio, dtFim); } catch (e) { console.error(e); showToast('Falha ao gerar PDF', 'error'); }
+    const filters = {
+      status: document.getElementById('opStatusRec')?.value || 'todos',
+      tipo: document.getElementById('opTipoRec')?.value || 'todos',
+    };
+    try { await gerarRelacaoRecebimentosPDF(dtInicio, dtFim, filters); } catch (e) { console.error(e); showToast('Falha ao gerar PDF', 'error'); }
   });
   document.getElementById('btnRelPag').addEventListener('click', async () => {
     setCampoDataLabels('pagamentos');
     const dtInicio = document.getElementById('dtInicio').value;
     const dtFim = document.getElementById('dtFim').value;
     window._campoDataRelatorios = document.getElementById('campoData').value;
-    try { await gerarRelacaoPagamentosPDF(dtInicio, dtFim); } catch (e) { console.error(e); showToast('Falha ao gerar PDF', 'error'); }
+    const filters = {
+      status: document.getElementById('opStatusPag')?.value || 'todos',
+      tipo: document.getElementById('opTipoPag')?.value || 'todos',
+    };
+    try { await gerarRelacaoPagamentosPDF(dtInicio, dtFim, filters); } catch (e) { console.error(e); showToast('Falha ao gerar PDF', 'error'); }
   });
   document.getElementById('btnRelRecCSV').addEventListener('click', async () => {
     setCampoDataLabels('recebimentos');
@@ -791,7 +862,11 @@ export async function renderRelatorios(app) {
     const endStr = document.getElementById('dtFim').value;
     window._campoDataRelatorios = document.getElementById('campoData').value;
     try {
-      const rows = await buildRelacaoRecebimentosCSV(startStr, endStr);
+      const filters = {
+        status: document.getElementById('opStatusRec')?.value || 'todos',
+        tipo: document.getElementById('opTipoRec')?.value || 'todos',
+      };
+      const rows = await buildRelacaoRecebimentosCSV(startStr, endStr, filters);
       exportToCSV(`relacao_recebimentos_${startStr}_a_${endStr}.csv`, rows);
       showToast('CSV de relação de recebimentos exportado', 'success');
     } catch (e) { console.error(e); showToast('Falha ao exportar CSV', 'error'); }
@@ -802,7 +877,11 @@ export async function renderRelatorios(app) {
     const endStr = document.getElementById('dtFim').value;
     window._campoDataRelatorios = document.getElementById('campoData').value;
     try {
-      const rows = await buildRelacaoPagamentosCSV(startStr, endStr);
+      const filters = {
+        status: document.getElementById('opStatusPag')?.value || 'todos',
+        tipo: document.getElementById('opTipoPag')?.value || 'todos',
+      };
+      const rows = await buildRelacaoPagamentosCSV(startStr, endStr, filters);
       exportToCSV(`relacao_pagamentos_${startStr}_a_${endStr}.csv`, rows);
       showToast('CSV de relação de pagamentos exportado', 'success');
     } catch (e) { console.error(e); showToast('Falha ao exportar CSV', 'error'); }
@@ -1863,7 +1942,7 @@ function renderParticipacaoTabela(container, dados) {
 }
 
 // Funções adicionadas ao final para geração dos relatórios operacionais
-async function gerarRelacaoRecebimentosPDF(startStr, endStr) {
+async function gerarRelacaoRecebimentosPDF(startStr, endStr, filters = { status: 'todos', tipo: 'todos' }) {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
@@ -1873,7 +1952,7 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  const { data: recebimentos } = await db.select('recebimentos', { select: 'id, cliente_id, descricao, valor_esperado, valor_recebido, status, data_vencimento, data_recebimento' });
+  const { data: recebimentos } = await db.select('recebimentos', { select: 'id, cliente_id, descricao, valor_esperado, valor_recebido, status, tipo_recebimento, data_vencimento, data_recebimento' });
   const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
   const clienteNome = (id) => (clientes||[]).find(c => c.id === id)?.nome || '—';
 
@@ -1909,7 +1988,9 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr) {
     const y = mesObj.year, m = mesObj.month;
     const { colX, tableTop } = header(m, y);
     const mmStr = String(m).padStart(2,'0');
-    const rowsMes = (recebimentos||[]).filter(r => ((r[dateField]||'').startsWith(`${y}-${mmStr}`)));
+    let rowsMes = (recebimentos||[]).filter(r => ((r[dateField]||'').startsWith(`${y}-${mmStr}`)));
+    if (filters.status && filters.status !== 'todos') { rowsMes = rowsMes.filter(r => (r.status || '').toLowerCase() === filters.status); }
+    if (filters.tipo && filters.tipo !== 'todos') { rowsMes = rowsMes.filter(r => (r.tipo_recebimento || '').toLowerCase() === filters.tipo); }
     const sorted = [...rowsMes].sort((a,b)=>((a[dateField]||'').localeCompare(b[dateField]||'')));
 
     let yList = tableTop + 16;
@@ -1955,7 +2036,7 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr) {
   showToast('Relação de recebimentos gerada em PDF', 'success');
 }
 
-async function gerarRelacaoPagamentosPDF(startStr, endStr) {
+async function gerarRelacaoPagamentosPDF(startStr, endStr, filters = { status: 'todos', tipo: 'todos' }) {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
@@ -1965,7 +2046,7 @@ async function gerarRelacaoPagamentosPDF(startStr, endStr) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  const { data: pagamentos } = await db.select('pagamentos', { select: 'id, fornecedor_id, descricao, valor_esperado, valor_pago, status, data_vencimento, data_pagamento' });
+  const { data: pagamentos } = await db.select('pagamentos', { select: 'id, fornecedor_id, descricao, valor_esperado, valor_pago, status, tipo_pagamento, data_vencimento, data_pagamento' });
   const { data: fornecedores } = await db.select('fornecedores', { select: 'id, nome' });
   const fornecedorNome = (id) => (fornecedores||[]).find(f => f.id === id)?.nome || '—';
 
@@ -2000,7 +2081,9 @@ async function gerarRelacaoPagamentosPDF(startStr, endStr) {
     const y = mesObj.year, m = mesObj.month;
     const { colX, tableTop } = header(m, y);
     const mmStr = String(m).padStart(2,'0');
-    const rowsMes = (pagamentos||[]).filter(p => ((p[dateField]||'').startsWith(`${y}-${mmStr}`)));
+    let rowsMes = (pagamentos||[]).filter(p => ((p[dateField]||'').startsWith(`${y}-${mmStr}`)));
+    if (filters.status && filters.status !== 'todos') { rowsMes = rowsMes.filter(p => (p.status || '').toLowerCase() === filters.status); }
+    if (filters.tipo && filters.tipo !== 'todos') { rowsMes = rowsMes.filter(p => (p.tipo_pagamento || '').toLowerCase() === filters.tipo); }
     const sorted = [...rowsMes].sort((a,b)=>((a[dateField]||'').localeCompare(b[dateField]||'')));
 
     let yList = tableTop + 16;
@@ -2047,10 +2130,10 @@ async function gerarRelacaoPagamentosPDF(startStr, endStr) {
 }
 
 // Helpers para exportação CSV das relações
-async function buildRelacaoRecebimentosCSV(startStr, endStr) {
+async function buildRelacaoRecebimentosCSV(startStr, endStr, filters = { status: 'todos', tipo: 'todos' }) {
   const campoSel = window._campoDataRelatorios || 'data_vencimento';
   const dateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
-  const { data: recebimentos } = await db.select('recebimentos', { select: 'cliente_id, descricao, valor_esperado, valor_recebido, status, data_vencimento, data_recebimento' });
+  const { data: recebimentos } = await db.select('recebimentos', { select: 'cliente_id, descricao, valor_esperado, valor_recebido, status, tipo_recebimento, data_vencimento, data_recebimento' });
   const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
   const nomeCliente = (id) => (clientes||[]).find(c => c.id === id)?.nome || '—';
   const inRange = (ds) => !!ds && ds >= startStr && ds <= endStr;
@@ -2060,22 +2143,26 @@ async function buildRelacaoRecebimentosCSV(startStr, endStr) {
     const ds = r[dateField];
     if (inRange(ds)) {
       const valor = Number(dateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
-      rows.push({
-        Cliente: nomeCliente(r.cliente_id),
-        Descricao: r.descricao || '—',
-        Data: fmtBR(ds),
-        Valor: valor,
-        Status: r.status || 'pendente',
-      });
+      if ((filters.status === 'todos' || (r.status || '').toLowerCase() === filters.status) &&
+          (filters.tipo === 'todos' || (r.tipo_recebimento || '').toLowerCase() === filters.tipo)) {
+        rows.push({
+          Cliente: nomeCliente(r.cliente_id),
+          Descricao: r.descricao || '—',
+          Data: fmtBR(ds),
+          Valor: valor,
+          Status: r.status || 'pendente',
+          Tipo: r.tipo_recebimento || '—',
+        });
+      }
     }
   });
   return rows;
 }
 
-async function buildRelacaoPagamentosCSV(startStr, endStr) {
+async function buildRelacaoPagamentosCSV(startStr, endStr, filters = { status: 'todos', tipo: 'todos' }) {
   const campoSel = window._campoDataRelatorios || 'data_vencimento';
   const dateField = (campoSel === 'data_pagamento') ? 'data_pagamento' : 'data_vencimento';
-  const { data: pagamentos } = await db.select('pagamentos', { select: 'fornecedor_id, descricao, valor_esperado, valor_pago, status, data_vencimento, data_pagamento' });
+  const { data: pagamentos } = await db.select('pagamentos', { select: 'fornecedor_id, descricao, valor_esperado, valor_pago, status, tipo_pagamento, data_vencimento, data_pagamento' });
   const { data: fornecedores } = await db.select('fornecedores', { select: 'id, nome' });
   const nomeFornecedor = (id) => (fornecedores||[]).find(f => f.id === id)?.nome || '—';
   const inRange = (ds) => !!ds && ds >= startStr && ds <= endStr;
@@ -2085,13 +2172,17 @@ async function buildRelacaoPagamentosCSV(startStr, endStr) {
     const ds = p[dateField];
     if (inRange(ds)) {
       const valor = Number(dateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0));
-      rows.push({
-        Fornecedor: nomeFornecedor(p.fornecedor_id),
-        Descricao: p.descricao || '—',
-        Data: fmtBR(ds),
-        Valor: valor,
-        Status: p.status || 'pendente',
-      });
+      if ((filters.status === 'todos' || (p.status || '').toLowerCase() === filters.status) &&
+          (filters.tipo === 'todos' || (p.tipo_pagamento || '').toLowerCase() === filters.tipo)) {
+        rows.push({
+          Fornecedor: nomeFornecedor(p.fornecedor_id),
+          Descricao: p.descricao || '—',
+          Data: fmtBR(ds),
+          Valor: valor,
+          Status: p.status || 'pendente',
+          Tipo: p.tipo_pagamento || '—',
+        });
+      }
     }
   });
   return rows;

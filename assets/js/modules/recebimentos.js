@@ -68,7 +68,7 @@ function recebimentoForm(initial = {}, lookups = { clientes: [], categorias: [],
         </div>
       </div>
       <div class="form-inline" style="margin-top:12px">
-        <div class="field sm"><label>Valor Esperado</label><input id="valor_esperado" value="${initial.valor_esperado||''}" /></div>
+        <div class="field sm"><label>Valor Esperado <span style="color:#b91c1c">(obrigatório)</span></label><input id="valor_esperado" value="${initial.valor_esperado||''}" required/></div>
         <div class="field sm highlight"><label>Valor Recebido</label><input id="valor_recebido" value="${initial.valor_recebido||''}" /></div>
         <div class="field sm"><label>Data Emissão</label><input type="date" id="data_emissao" value="${initial.data_emissao||formatDate()}" /></div>
         <div class="field sm"><label>Data Vencimento</label><input type="date" id="data_vencimento" value="${initial.data_vencimento||formatDate()}" required/></div>
@@ -190,6 +190,27 @@ async function openCreate() {
     }},
     { label: 'Salvar', className: 'btn btn-primary', onClick: async ({ close }) => {
       const values = getRecFormValues(modal, lookups);
+      // validação: valor esperado obrigatório e maior que zero
+      const valEsperadoEl = modal.querySelector('#valor_esperado');
+      if (!values.valor_esperado || values.valor_esperado <= 0) {
+        if (valEsperadoEl) { valEsperadoEl.style.outline = '2px solid var(--danger)'; valEsperadoEl.style.background = '#fff5f5'; valEsperadoEl.focus(); }
+        showToast('Informe o Valor Esperado (obrigatório).', 'error');
+        return;
+      } else { if (valEsperadoEl) { valEsperadoEl.style.outline = ''; valEsperadoEl.style.background = ''; } }
+      // validação: cliente obrigatório
+      const cliEl = modal.querySelector('#cliente_nome');
+      if (!values.cliente_id) {
+        if (cliEl) { cliEl.style.outline = '2px solid var(--danger)'; cliEl.style.background = '#fff5f5'; cliEl.focus(); }
+        showToast('Selecione um Cliente da lista (obrigatório).', 'error');
+        return;
+      } else { if (cliEl) { cliEl.style.outline = ''; cliEl.style.background = ''; } }
+      // validação: data de vencimento obrigatória
+      const vencEl = modal.querySelector('#data_vencimento');
+      if (!values.data_vencimento) {
+        if (vencEl) { vencEl.style.outline = '2px solid var(--danger)'; vencEl.style.background = '#fff5f5'; vencEl.focus(); }
+        showToast('Informe a Data de Vencimento (obrigatório).', 'error');
+        return;
+      } else { if (vencEl) { vencEl.style.outline = ''; vencEl.style.background = ''; } }
       const nomeCli = modal.querySelector('#cliente_nome')?.value?.trim();
       const nomeCat = modal.querySelector('#categoria_nome')?.value?.trim();
       const nomeFor = modal.querySelector('#forma_nome')?.value?.trim();
@@ -259,6 +280,27 @@ async function openEdit(row) {
     { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
     { label: 'Atualizar', className: 'btn btn-primary', onClick: async ({ close }) => {
       const values = getRecFormValues(modal, lookups);
+      // validação: valor esperado obrigatório e maior que zero
+      const valEsperadoEl = modal.querySelector('#valor_esperado');
+      if (!values.valor_esperado || values.valor_esperado <= 0) {
+        if (valEsperadoEl) { valEsperadoEl.style.outline = '2px solid var(--danger)'; valEsperadoEl.style.background = '#fff5f5'; valEsperadoEl.focus(); }
+        showToast('Informe o Valor Esperado (obrigatório).', 'error');
+        return;
+      } else { if (valEsperadoEl) { valEsperadoEl.style.outline = ''; valEsperadoEl.style.background = ''; } }
+      // validação: cliente obrigatório
+      const cliEl = modal.querySelector('#cliente_nome');
+      if (!values.cliente_id) {
+        if (cliEl) { cliEl.style.outline = '2px solid var(--danger)'; cliEl.style.background = '#fff5f5'; cliEl.focus(); }
+        showToast('Selecione um Cliente da lista (obrigatório).', 'error');
+        return;
+      } else { if (cliEl) { cliEl.style.outline = ''; cliEl.style.background = ''; } }
+      // validação: data de vencimento obrigatória
+      const vencEl = modal.querySelector('#data_vencimento');
+      if (!values.data_vencimento) {
+        if (vencEl) { vencEl.style.outline = '2px solid var(--danger)'; vencEl.style.background = '#fff5f5'; vencEl.focus(); }
+        showToast('Informe a Data de Vencimento (obrigatório).', 'error');
+        return;
+      } else { if (vencEl) { vencEl.style.outline = ''; vencEl.style.background = ''; } }
       const nomeCli = modal.querySelector('#cliente_nome')?.value?.trim();
       const nomeCat = modal.querySelector('#categoria_nome')?.value?.trim();
       const nomeFor = modal.querySelector('#forma_nome')?.value?.trim();
