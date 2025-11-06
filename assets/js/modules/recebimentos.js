@@ -3,6 +3,16 @@ import { showToast, formatCurrency, parseCurrency, formatDate, formatDateBR, set
 import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
+// Seleção em massa (persistente durante a navegação)
+const selectedRecIds = new Set();
+function updateBatchButtonRec() {
+  const btn = document.getElementById('baixarSelecionadosRec');
+  if (!btn) return;
+  const count = selectedRecIds.size;
+  btn.textContent = count > 0 ? `Baixar selecionados (${count})` : 'Baixar selecionados';
+  btn.disabled = count === 0;
+}
+
 async function fetchRecebimentos(filters = {}) {
   const opts = { select: 'id, cliente_id, categoria_id, forma_pagamento_id, descricao, valor_esperado, valor_recebido, data_emissao, data_vencimento, data_recebimento, dia_recebimento, status, tipo_recebimento, parcela_atual, total_parcelas, observacoes' };
   opts.eq = {};
@@ -566,6 +576,7 @@ export async function renderRecebimentos(app) {
         </div>
         <button id="newRec" class="btn btn-primary">Novo</button>
         <button id="genRec" class="btn btn-success">Gerar Recebimentos</button>
+        <button id="baixarSelecionadosRec" class="btn btn-success" disabled>Baixar selecionados</button>
         <button id="relatorio" class="btn btn-outline">Exportar CSV</button>
       </div>
     </div>
@@ -816,9 +827,10 @@ export async function renderRecebimentos(app) {
     // só agora limpa e renderiza
     cont.innerHTML = '';
     setLoading(cont, false);
-  
+
     renderTable(cont, {
       columns: [
+        { key: 'id', label: '', headerRender: () => `<input type="checkbox" class="select-all select-all-rec" title="Marcar todos visíveis" />`, render: (_v, r) => `<input type="checkbox" class="row-select row-select-rec" data-id="${r.id}" ${selectedRecIds.has(String(r.id))?'checked':''} />` },
         { key: 'descricao', label: 'Descrição', render: (v, r) => {
           const desc = (v ?? '').toString();
           const hint = (r.observacoes ?? '').toString();
@@ -855,7 +867,45 @@ export async function renderRecebimentos(app) {
         { label: 'Recebido', className: 'btn btn-success', onClick: r => openRecebido(r) },
       ],
     });
-  
+
+    // Wiring dos checkboxes de seleção
+    cont.querySelectorAll('.row-select-rec').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const id = cb.dataset.id || cb.getAttribute('data-id') || '';
+        if (!id) return;
+        const key = String(id);
+        if (cb.checked) selectedRecIds.add(key); else selectedRecIds.delete(key);
+        updateBatchButtonRec();
+        updateHeaderSelectAllRec();
+      });
+    });
+    // Atualiza estado do botão após render
+    updateBatchButtonRec();
+
+    function updateHeaderSelectAllRec() {
+      const headerCb = cont.querySelector('.select-all-rec');
+      if (!headerCb) return;
+      const vis = Array.from(cont.querySelectorAll('.row-select-rec'));
+      const total = vis.length;
+      const checked = vis.filter(c => c.checked).length;
+      headerCb.indeterminate = checked > 0 && checked < total;
+      headerCb.checked = total > 0 && checked === total;
+    }
+    updateHeaderSelectAllRec();
+
+    const headerCb = cont.querySelector('.select-all-rec');
+    headerCb?.addEventListener('change', () => {
+      const vis = Array.from(cont.querySelectorAll('.row-select-rec'));
+      vis.forEach(cb => {
+        cb.checked = headerCb.checked;
+        const id = cb.dataset.id || cb.getAttribute('data-id') || '';
+        const key = String(id);
+        if (headerCb.checked) selectedRecIds.add(key); else selectedRecIds.delete(key);
+      });
+      updateBatchButtonRec();
+      updateHeaderSelectAllRec();
+    });
+
     const pager = document.createElement('div');
     pager.style.display = 'flex';
     pager.style.justifyContent = 'space-between';
@@ -933,6 +983,61 @@ export async function renderRecebimentos(app) {
     page = 1;
     load();
   });
+
+  // Baixa em massa (Recebimentos)
+  const btnBatchRec = document.getElementById('baixarSelecionadosRec');
+  if (btnBatchRec) {
+    btnBatchRec.addEventListener('click', async () => {
+      const today = formatDate();
+      const { modal, close } = createModal({
+        title: 'Baixar recebimentos selecionados',
+        content: `<div class="card">
+          <p>Informe a data de recebimento que será aplicada a todos os selecionados.</p>
+          <label style="display:flex;gap:8px;align-items:center;">
+            <span>Data do recebimento</span>
+            <input type="date" id="dtBatchRec" value="${today}" />
+          </label>
+          <div class="muted" style="margin-top:8px;">O valor recebido será igual ao valor a receber (esperado).</div>
+        </div>`,
+        actions: [
+          { label: 'Cancelar', className: 'btn btn-outline', onClick: ({ close }) => close() },
+          { label: 'Baixar', className: 'btn btn-success', onClick: async ({ close }) => {
+            const dt = modal.querySelector('#dtBatchRec')?.value || today;
+            const ids = Array.from(selectedRecIds);
+            if (!ids.length) { showToast('Nenhum item selecionado', 'warning'); return; }
+            try {
+              const updates = ids.map(async id => {
+                const idStr = String(id);
+                let row = currentRows.find(r => String(r.id) === idStr);
+                if (!row) {
+                  const { data } = await db.select('recebimentos', { select: 'id, valor_esperado', eq: { id: idStr } });
+                  row = (data||[])[0];
+                }
+                const valor = Number(row?.valor_esperado || 0);
+                return db.update('recebimentos', idStr, { status: 'recebido', valor_recebido: valor, data_recebimento: dt });
+              });
+              const results = await Promise.all(updates);
+              const errors = results.filter(r => r?.error);
+              if (errors.length) {
+                showToast(`Alguns itens falharam (${errors.length}).`, 'error');
+              } else {
+                showToast(`Baixa concluída para ${ids.length} recebimento(s).`, 'success');
+              }
+              selectedRecIds.clear();
+              updateBatchButtonRec();
+              // recarrega a lista para refletir a baixa
+              debouncedLoad();
+            } catch (e) {
+              console.error(e);
+              showToast('Erro na baixa em massa', 'error');
+            } finally {
+              close();
+            }
+          } },
+        ],
+      });
+    });
+  }
   document.getElementById('fCliNome').addEventListener('input', (e) => { qCli = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('fDescricao').addEventListener('input', (e) => { qDesc = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('fCategoriaNome').addEventListener('input', (e) => { qCat = e.target.value.trim(); page = 1; debouncedLoad(); });

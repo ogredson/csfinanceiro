@@ -8,7 +8,13 @@ export function renderTable(container, { columns = [], rows = [], actions = [], 
   const thead = document.createElement('thead');
   const trHead = document.createElement('tr');
   columns.forEach(col => {
-    const th = document.createElement('th'); th.textContent = col.label; trHead.appendChild(th);
+    const th = document.createElement('th');
+    if (typeof col.headerRender === 'function') {
+      th.innerHTML = col.headerRender(col);
+    } else {
+      th.textContent = col.label;
+    }
+    trHead.appendChild(th);
   });
   if (actions.length) { const th = document.createElement('th'); th.textContent = 'Ações'; trHead.appendChild(th); }
   thead.appendChild(trHead);

@@ -3,6 +3,16 @@ import { showToast, formatCurrency, parseCurrency, formatDate, formatDateBR, set
 import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
 
+// Seleção em massa (persistente durante a navegação)
+const selectedPagIds = new Set();
+function updateBatchButtonPag() {
+  const btn = document.getElementById('baixarSelecionadosPag');
+  if (!btn) return;
+  const count = selectedPagIds.size;
+  btn.textContent = count > 0 ? `Baixar selecionados (${count})` : 'Baixar selecionados';
+  btn.disabled = count === 0;
+}
+
 async function fetchPagamentos(filters = {}) {
   const opts = { select: 'id, fornecedor_id, categoria_id, forma_pagamento_id, descricao, beneficiario, valor_esperado, valor_pago, data_emissao, data_vencimento, data_pagamento, dia_pagamento, status, tipo_pagamento, parcela_atual, total_parcelas, observacoes' };
   opts.eq = {};
@@ -700,6 +710,7 @@ export async function renderPagamentos(app) {
         </div>
         <button id="newPay" class="btn btn-primary">Novo</button>
         <button id="gerarPagamentos" class="btn btn-success">Gerar Pagamentos</button>
+        <button id="baixarSelecionadosPag" class="btn btn-success" disabled>Baixar selecionados</button>
         <button id="relatorioDespesas" class="btn btn-outline">Relatório de despesas</button>
       </div>
     </div>
@@ -942,6 +953,7 @@ export async function renderPagamentos(app) {
 
     renderTable(cont, {
       columns: [
+        { key: 'id', label: '', headerRender: () => `<input type="checkbox" class="select-all select-all-pag" title="Marcar todos visíveis" />`, render: (_v, r) => `<input type="checkbox" class="row-select row-select-pag" data-id="${r.id}" ${selectedPagIds.has(String(r.id))?'checked':''} />` },
         { key: 'descricao', label: 'Descrição', render: (v, r) => {
           const desc = (v ?? '').toString();
           const hint = (r.observacoes ?? '').toString();
@@ -977,6 +989,43 @@ export async function renderPagamentos(app) {
         { label: 'Excluir', className: 'btn btn-danger', onClick: async r => { const ok = confirm(`Confirma a exclusão de "${r.descricao}"? Esta ação não pode ser desfeita.`); if (!ok) return; const { error } = await db.remove('pagamentos', r.id); if (error) showToast(error.message||'Erro ao excluir','error'); else { showToast('Excluído','success'); load(); } } },
         { label: 'Pago', className: 'btn btn-success', onClick: r => openPago(r) },
       ],
+    });
+
+    // Wiring dos checkboxes de seleção
+    cont.querySelectorAll('.row-select-pag').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const id = cb.dataset.id || cb.getAttribute('data-id') || '';
+        if (!id) return;
+        const key = String(id);
+        if (cb.checked) selectedPagIds.add(key); else selectedPagIds.delete(key);
+        updateBatchButtonPag();
+        updateHeaderSelectAllPag();
+      });
+    });
+    updateBatchButtonPag();
+
+    function updateHeaderSelectAllPag() {
+      const headerCb = cont.querySelector('.select-all-pag');
+      if (!headerCb) return;
+      const vis = Array.from(cont.querySelectorAll('.row-select-pag'));
+      const total = vis.length;
+      const checked = vis.filter(c => c.checked).length;
+      headerCb.indeterminate = checked > 0 && checked < total;
+      headerCb.checked = total > 0 && checked === total;
+    }
+    updateHeaderSelectAllPag();
+
+    const headerCb = cont.querySelector('.select-all-pag');
+    headerCb?.addEventListener('change', () => {
+      const vis = Array.from(cont.querySelectorAll('.row-select-pag'));
+      vis.forEach(cb => {
+        cb.checked = headerCb.checked;
+        const id = cb.dataset.id || cb.getAttribute('data-id') || '';
+        const key = String(id);
+        if (headerCb.checked) selectedPagIds.add(key); else selectedPagIds.delete(key);
+      });
+      updateBatchButtonPag();
+      updateHeaderSelectAllPag();
     });
 
     const pager = document.createElement('div');
@@ -1052,6 +1101,60 @@ export async function renderPagamentos(app) {
     page = 1;
     load();
   });
+
+  // Baixa em massa (Pagamentos)
+  const btnBatchPag = document.getElementById('baixarSelecionadosPag');
+  if (btnBatchPag) {
+    btnBatchPag.addEventListener('click', async () => {
+      const today = formatDate();
+      const { modal, close } = createModal({
+        title: 'Baixar pagamentos selecionados',
+        content: `<div class="card">
+          <p>Informe a data de pagamento que será aplicada a todos os selecionados.</p>
+          <label style="display:flex;gap:8px;align-items:center;">
+            <span>Data do pagamento</span>
+            <input type="date" id="dtBatchPag" value="${today}" />
+          </label>
+          <div class="muted" style="margin-top:8px;">O valor pago será igual ao valor a pagar (esperado).</div>
+        </div>`,
+        actions: [
+          { label: 'Cancelar', className: 'btn btn-outline', onClick: ({ close }) => close() },
+          { label: 'Baixar', className: 'btn btn-success', onClick: async ({ close }) => {
+            const dt = modal.querySelector('#dtBatchPag')?.value || today;
+            const ids = Array.from(selectedPagIds);
+            if (!ids.length) { showToast('Nenhum item selecionado', 'warning'); return; }
+            try {
+              const updates = ids.map(async id => {
+                const idStr = String(id);
+                let row = currentRows.find(r => String(r.id) === idStr);
+                if (!row) {
+                  const { data } = await db.select('pagamentos', { select: 'id, valor_esperado', eq: { id: idStr } });
+                  row = (data||[])[0];
+                }
+                const valor = Number(row?.valor_esperado || 0);
+                return db.update('pagamentos', idStr, { status: 'pago', valor_pago: valor, data_pagamento: dt });
+              });
+              const results = await Promise.all(updates);
+              const errors = results.filter(r => r?.error);
+              if (errors.length) {
+                showToast(`Alguns itens falharam (${errors.length}).`, 'error');
+              } else {
+                showToast(`Baixa concluída para ${ids.length} pagamento(s).`, 'success');
+              }
+              selectedPagIds.clear();
+              updateBatchButtonPag();
+              load();
+            } catch (e) {
+              console.error(e);
+              showToast('Erro na baixa em massa', 'error');
+            } finally {
+              close();
+            }
+          } },
+        ],
+      });
+    });
+  }
     document.getElementById('fForNome').addEventListener('input', (e) => { qFor = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('fDescricao').addEventListener('input', (e) => { qDesc = e.target.value.trim(); page = 1; debouncedLoad(); });
   document.getElementById('fCategoriaNome').addEventListener('input', (e) => { qCat = e.target.value.trim(); page = 1; debouncedLoad(); });

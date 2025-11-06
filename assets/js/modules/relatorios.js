@@ -93,6 +93,216 @@ function getMonthNamePtBr(month) {
   return nomes[month - 1] || '';
 }
 
+async function gerarEvolucaoReceitasDespesasPDF(startStr, endStr, saldoInicial = 0) {
+  const { jsPDF } = window.jspdf || {};
+  if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  doc.setFont('helvetica','normal');
+  const blue = [0, 64, 192];
+  const red = [192, 0, 0];
+  const margin = 24;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const campoSel = window._campoDataRelatorios || 'data_vencimento';
+  const recDateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
+  const pagDateField = (campoSel === 'data_pagamento') ? 'data_pagamento' : 'data_vencimento';
+
+  const parseDate = (str) => {
+    if (!str) return null;
+    const [y,m,d] = String(str).split('T')[0].split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m-1, d);
+  };
+  const inRange = (dt) => {
+    if (!dt) return false;
+    const sParts = startStr.split('-').map(Number);
+    const eParts = endStr.split('-').map(Number);
+    const s = new Date(sParts[0], sParts[1]-1, sParts[2]||1);
+    const e = new Date(eParts[0], eParts[1]-1, eParts[2]||1);
+    const dts = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    return dts >= s && dts <= e;
+  };
+
+  const { data: recebimentos } = await db.select('recebimentos', { select: 'id, categoria_id, descricao, valor_esperado, valor_recebido, status, data_vencimento, data_recebimento' });
+  const { data: pagamentos } = await db.select('pagamentos', { select: 'id, categoria_id, descricao, valor_esperado, valor_pago, status, data_vencimento, data_pagamento' });
+  const { data: categorias } = await db.select('categorias', { select: 'id, nome, tipo' });
+  const mapCat = new Map((categorias||[]).map(c => [c.id, { nome: c.nome, tipo: c.tipo }]));
+
+  const months = buildMonthArray(startStr, endStr);
+  const monthKey = (y,m) => `${y}-${String(m).padStart(2,'0')}`;
+  const monthLabel = (y,m) => {
+    const abbr = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'][m-1] || '';
+    return `${abbr}/${String(y).slice(-2)}`;
+  };
+
+  const receitasCats = new Set();
+  const despesasCats = new Set();
+  const receitasPorMesCat = {};
+  const despesasPorMesCat = {};
+  const totReceitasMes = {};
+  const totDespesasMes = {};
+
+  (recebimentos||[]).forEach(r => {
+    const dt = parseDate(r[recDateField]);
+    if (!dt || !inRange(dt)) return;
+    const val = (recDateField === 'data_recebimento') ? Number(r.valor_recebido||0) : Number(r.valor_esperado||0);
+    const key = monthKey(dt.getFullYear(), dt.getMonth()+1);
+    const cat = mapCat.get(r.categoria_id);
+    const catId = r.categoria_id;
+    if (cat && cat.tipo === 'entrada') {
+      receitasCats.add(catId);
+      if (!receitasPorMesCat[catId]) receitasPorMesCat[catId] = {};
+      receitasPorMesCat[catId][key] = (receitasPorMesCat[catId][key]||0) + val;
+      totReceitasMes[key] = (totReceitasMes[key]||0) + val;
+    }
+  });
+  (pagamentos||[]).forEach(p => {
+    const dt = parseDate(p[pagDateField]);
+    if (!dt || !inRange(dt)) return;
+    const val = (pagDateField === 'data_pagamento') ? Number(p.valor_pago||0) : Number(p.valor_esperado||0);
+    const key = monthKey(dt.getFullYear(), dt.getMonth()+1);
+    const cat = mapCat.get(p.categoria_id);
+    const catId = p.categoria_id;
+    if (cat && cat.tipo === 'saida') {
+      despesasCats.add(catId);
+      if (!despesasPorMesCat[catId]) despesasPorMesCat[catId] = {};
+      despesasPorMesCat[catId][key] = (despesasPorMesCat[catId][key]||0) + val;
+      totDespesasMes[key] = (totDespesasMes[key]||0) + val;
+    }
+  });
+
+  const saldoFinalMes = {};
+  const acumuladoMes = {};
+  let acc = Number(saldoInicial || 0);
+  months.forEach(({year, month}) => {
+    const key = monthKey(year, month);
+    const rec = Number(totReceitasMes[key]||0);
+    const des = Number(totDespesasMes[key]||0);
+    const saldo = rec - des;
+    saldoFinalMes[key] = saldo;
+    acc += saldo;
+    acumuladoMes[key] = acc;
+  });
+
+  const title = 'Evolução das Receitas x Despesas';
+  doc.setTextColor(0,0,0);
+  doc.setFontSize(18);
+  doc.text(title, margin, margin + 18);
+  doc.setFontSize(11);
+  const campoLabel = (campoSel === 'data_pagamento') ? 'Por Pagamento/Recebimento' : 'Por Vencimento';
+  doc.text(`Período ${formatDate(startStr)} a ${formatDate(endStr)}`, margin, margin + 36);
+  doc.text(`Campo de data: ${campoLabel}`, margin, margin + 52);
+  doc.text(`Saldo inicial ${formatCurrency(Number(saldoInicial||0))}`, margin, margin + 68);
+
+  const leftW = 240;
+  const rightW = pageWidth - margin*2 - leftW;
+  const colW = rightW / Math.max(months.length, 1);
+  let y = margin + 92;
+
+  // Cabeçalhos
+  doc.setFontSize(10);
+  doc.setTextColor(0,0,0);
+  doc.text('Receitas', margin, y);
+  doc.setTextColor(blue[0], blue[1], blue[2]);
+  doc.text('Descrição da Receita', margin, y + 16);
+  doc.setTextColor(0,0,0);
+  months.forEach((m, idx) => {
+    const x = margin + leftW + idx*colW + 4;
+    doc.text(monthLabel(m.year, m.month), x, y);
+  });
+  y += 28;
+
+  // Linhas de categorias de receita
+  const receitaCatIds = Array.from(receitasCats);
+  receitaCatIds.sort((a,b) => (mapCat.get(a)?.nome||'').localeCompare(mapCat.get(b)?.nome||''));
+  doc.setTextColor(blue[0], blue[1], blue[2]);
+  receitaCatIds.forEach(catId => {
+    if (y > pageHeight - margin - 140) { doc.addPage(); y = margin + 24; }
+    doc.text(mapCat.get(catId)?.nome || '-', margin, y);
+    months.forEach((m, idx) => {
+      const key = monthKey(m.year, m.month);
+      const v = Number((receitasPorMesCat[catId]||{})[key]||0);
+      const tx = margin + leftW + idx*colW + colW - 4;
+      doc.text(formatCurrency(v), tx, y, { align: 'right' });
+    });
+    y += 16;
+  });
+  // Total Receitas Mês
+  doc.setTextColor(blue[0], blue[1], blue[2]);
+  doc.setFontSize(11);
+  doc.text('Total Receitas Mês', margin, y);
+  months.forEach((m, idx) => {
+    const key = monthKey(m.year, m.month);
+    const v = Number(totReceitasMes[key]||0);
+    const tx = margin + leftW + idx*colW + colW - 4;
+    doc.text(formatCurrency(v), tx, y, { align: 'right' });
+  });
+  y += 28;
+
+  // Despesas
+  doc.setTextColor(0,0,0);
+  doc.setFontSize(10);
+  doc.text('Despesas', margin, y);
+  doc.setTextColor(red[0], red[1], red[2]);
+  doc.text('Descrição da Despesa', margin, y + 16);
+  doc.setTextColor(0,0,0);
+  months.forEach((m, idx) => {
+    const x = margin + leftW + idx*colW + 4;
+    doc.text(monthLabel(m.year, m.month), x, y);
+  });
+  y += 28;
+
+  const despesaCatIds = Array.from(despesasCats);
+  despesaCatIds.sort((a,b) => (mapCat.get(a)?.nome||'').localeCompare(mapCat.get(b)?.nome||''));
+  doc.setTextColor(red[0], red[1], red[2]);
+  despesaCatIds.forEach(catId => {
+    if (y > pageHeight - margin - 140) { doc.addPage(); y = margin + 24; }
+    doc.text(mapCat.get(catId)?.nome || '-', margin, y);
+    months.forEach((m, idx) => {
+      const key = monthKey(m.year, m.month);
+      const v = Number((despesasPorMesCat[catId]||{})[key]||0);
+      const tx = margin + leftW + idx*colW + colW - 4;
+      doc.text(formatCurrency(v), tx, y, { align: 'right' });
+    });
+    y += 16;
+  });
+
+  doc.setTextColor(red[0], red[1], red[2]);
+  doc.setFontSize(11);
+  doc.text('Total Despesas Mês', margin, y);
+  months.forEach((m, idx) => {
+    const key = monthKey(m.year, m.month);
+    const v = Number(totDespesasMes[key]||0);
+    const tx = margin + leftW + idx*colW + colW - 4;
+    doc.text(formatCurrency(v), tx, y, { align: 'right' });
+  });
+  y += 28;
+
+  doc.setTextColor(blue[0], blue[1], blue[2]);
+  doc.setFontSize(11);
+  doc.text('Saldo Final (Receita – Despesa)', margin, y);
+  months.forEach((m, idx) => {
+    const key = monthKey(m.year, m.month);
+    const v = Number(saldoFinalMes[key]||0);
+    const tx = margin + leftW + idx*colW + colW - 4;
+    doc.text(formatCurrency(v), tx, y, { align: 'right' });
+  });
+  y += 20;
+
+  doc.setTextColor(blue[0], blue[1], blue[2]);
+  doc.text('Acumulado', margin, y);
+  months.forEach((m, idx) => {
+    const key = monthKey(m.year, m.month);
+    const v = Number(acumuladoMes[key]||0);
+    const tx = margin + leftW + idx*colW + colW - 4;
+    doc.text(formatCurrency(v), tx, y, { align: 'right' });
+  });
+
+  doc.save(`evolucao_receitas_despesas_${startStr}_a_${endStr}.pdf`);
+  showToast('PDF gerado: Evolução das Receitas x Despesas', 'success');
+}
+
 async function gerarCalendarioRecebimentosPDF(startStr, endStr) {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
@@ -445,6 +655,23 @@ export async function renderRelatorios(app) {
         </div>
       </div>
 
+      <div class="card area" data-area-id="gerenciais">
+        <div class="toolbar" style="justify-content:space-between;">
+          <h3>Relatórios Gerenciais</h3>
+          <button class="btn btn-outline" data-toggle="gerenciais">Mostrar/Ocultar</button>
+        </div>
+        <div class="area-body" id="areaBody_gerenciais" style="display:block;">
+          <div class="muted" style="margin-bottom:8px;">Evolução mensal das Receitas x Despesas no período selecionado.</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+            <label style="display:inline-flex;align-items:center;gap:6px;">
+              Saldo Inicial
+              <input type="number" id="saldoInicialGer" step="0.01" value="0" style="width:140px;" />
+            </label>
+            <button id="btnEvolucaoRecDesp" class="btn btn-outline">Evolução das Receitas x Despesas</button>
+          </div>
+        </div>
+      </div>
+
       <div class="card area" data-area-id="participacao">
         <div class="toolbar" style="justify-content:space-between;">
           <h3>Participação por Cliente</h3>
@@ -509,7 +736,7 @@ export async function renderRelatorios(app) {
   const lsKey = 'REL_SECTIONS_OPEN';
   const openSet = new Set(JSON.parse(localStorage.getItem(lsKey) || '[]'));
   function applyOpenState() {
-    ['calendarios','operacionais','fluxo','participacao','extras'].forEach(id => {
+    ['calendarios','operacionais','fluxo','gerenciais','participacao','extras'].forEach(id => {
       const body = document.getElementById(`areaBody_${id}`);
       if (!body) return;
       body.style.display = openSet.has(id) ? 'block' : 'none';
@@ -524,7 +751,7 @@ export async function renderRelatorios(app) {
     btn.addEventListener('click', () => toggleArea(btn.getAttribute('data-toggle')));
   });
   // inicializa (default: mostrar todas se nenhuma preferência)
-  if (openSet.size === 0) { ['calendarios','operacionais','fluxo'].forEach(id => openSet.add(id)); localStorage.setItem(lsKey, JSON.stringify(Array.from(openSet))); }
+  if (openSet.size === 0) { ['calendarios','operacionais','fluxo','gerenciais'].forEach(id => openSet.add(id)); localStorage.setItem(lsKey, JSON.stringify(Array.from(openSet))); }
   applyOpenState();
 
   // Eventos dos botões de topo
@@ -597,6 +824,16 @@ export async function renderRelatorios(app) {
     const tipoRelatorio = document.getElementById('tipoRelatorio').value;
     window._campoDataRelatorios = document.getElementById('campoData').value;
     try { await gerarFluxoCaixaPorCategoriasPDF(dtInicioVal, dtFimVal, saldoInicial, tipoRelatorio); } catch (e) { console.error(e); showToast('Falha ao gerar fluxo por categorias em PDF', 'error'); }
+  });
+
+  // Relatórios Gerenciais – Evolução Receitas x Despesas
+  const btnEvolucao = document.getElementById('btnEvolucaoRecDesp');
+  if (btnEvolucao) btnEvolucao.addEventListener('click', async () => {
+    const startStr = document.getElementById('dtInicio').value;
+    const endStr = document.getElementById('dtFim').value;
+    const saldoInicial = Number(document.getElementById('saldoInicialGer').value || 0);
+    window._campoDataRelatorios = document.getElementById('campoData').value;
+    try { await gerarEvolucaoReceitasDespesasPDF(startStr, endStr, saldoInicial); } catch (e) { console.error(e); showToast('Falha ao gerar relatório gerencial', 'error'); }
   });
 
   // Participação por Cliente – eventos
