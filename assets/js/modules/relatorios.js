@@ -1960,8 +1960,8 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr, filters = { status:
     const c = mapCli.get(id);
     const regime = (c?.regime_tributario || '').toLowerCase();
     const tipoEmp = (c?.tipo_empresa || '').toLowerCase();
-    if (regime === 'lucro real' && tipoEmp === 'industria') return 'NF Serv c/ Retencao';
-    if (regime === 'lucro real') return 'Emissao NF Serv';
+    if (regime === 'lucro real' && tipoEmp === 'industria') return 'NF Serv Retencao';
+    if (regime === 'lucro real') return 'Emitir NF Serv';
     return '';
   };
 
@@ -2005,6 +2005,7 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr, filters = { status:
 
     let yList = tableTop + 16;
     doc.setTextColor(0,0,0); doc.setFontSize(9);
+    const baseContentSize = 9;
     const lineHeight = 12;
     const padY = 10;
 
@@ -2031,7 +2032,12 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr, filters = { status:
       doc.text(fmt, colX[2] + 3, yBase);
       // align value to the right within its column
       doc.text(formatCurrency(valor), colX[3] + cols[3].width - 3, yBase, { align: 'right' });
+      // Tipo Emissao: fonte reduzida e negrito (apenas conteúdo)
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(9);
       doc.text(tipoEmissao || '—', colX[4] + 3, yBase);
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(baseContentSize);
       doc.text(status, colX[5] + 3, yBase);
       yList += rowH + 6;
     }
@@ -2154,8 +2160,8 @@ async function buildRelacaoRecebimentosCSV(startStr, endStr, filters = { status:
     const c = mapCli.get(id);
     const regime = (c?.regime_tributario || '').toLowerCase();
     const tipoEmp = (c?.tipo_empresa || '').toLowerCase();
-    if (regime === 'lucro real' && tipoEmp === 'industria') return 'NF Serv c/ Retencao';
-    if (regime === 'lucro real') return 'Emissao NF Serv';
+    if (regime === 'lucro real' && tipoEmp === 'industria') return 'NF Serv Retencao';
+    if (regime === 'lucro real') return 'Emitir NF Serv';
     return '';
   };
   const inRange = (ds) => !!ds && ds >= startStr && ds <= endStr;
