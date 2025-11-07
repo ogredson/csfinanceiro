@@ -1953,8 +1953,17 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr, filters = { status:
   const pageHeight = doc.internal.pageSize.getHeight();
 
   const { data: recebimentos } = await db.select('recebimentos', { select: 'id, cliente_id, descricao, valor_esperado, valor_recebido, status, tipo_recebimento, data_vencimento, data_recebimento' });
-  const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
-  const clienteNome = (id) => (clientes||[]).find(c => c.id === id)?.nome || '—';
+  const { data: clientes } = await db.select('clientes', { select: 'id, nome, regime_tributario, tipo_empresa' });
+  const mapCli = new Map((clientes||[]).map(c => [c.id, c]));
+  const clienteNome = (id) => (mapCli.get(id)?.nome) || '—';
+  const tipoEmissaoPorCliente = (id) => {
+    const c = mapCli.get(id);
+    const regime = (c?.regime_tributario || '').toLowerCase();
+    const tipoEmp = (c?.tipo_empresa || '').toLowerCase();
+    if (regime === 'lucro real' && tipoEmp === 'industria') return 'NF Serv c/ Retencao';
+    if (regime === 'lucro real') return 'Emissao NF Serv';
+    return '';
+  };
 
   const campoSel = window._campoDataRelatorios || 'data_vencimento';
   const dateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
@@ -1965,6 +1974,7 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr, filters = { status:
     { label: 'Descrição', width: 320 },
     { label: 'Data', width: 90 },
     { label: 'Valor', width: 110 },
+    { label: 'Tipo Emissao', width: 140 },
     { label: 'Status', width: 74 },
   ];
   const availWidth = pageWidth - margin * 2;
@@ -2006,6 +2016,7 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr, filters = { status:
       const fmt = (dateStr && dateStr.includes('-')) ? `${dateStr.split('-')[2]}/${dateStr.split('-')[1]}/${dateStr.split('-')[0]}` : '—';
       const valor = Number(dateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
       const status = r.status || '—';
+      const tipoEmissao = tipoEmissaoPorCliente(r.cliente_id);
       const nomeLines = doc.splitTextToSize(nome, cols[0].width - 6);
       const descLines = doc.splitTextToSize(desc, cols[1].width - 6);
       const rowLines = Math.max(nomeLines.length, descLines.length);
@@ -2018,8 +2029,10 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr, filters = { status:
       for (let i = 0; i < descLines.length; i++) { doc.text(descLines[i], colX[1] + 3, yList + padY + i*lineHeight); }
       const yBase = yList + padY + lineHeight - 2;
       doc.text(fmt, colX[2] + 3, yBase);
-      doc.text(formatCurrency(valor), colX[3] + 3, yBase);
-      doc.text(status, colX[4] + 3, yBase);
+      // align value to the right within its column
+      doc.text(formatCurrency(valor), colX[3] + cols[3].width - 3, yBase, { align: 'right' });
+      doc.text(tipoEmissao || '—', colX[4] + 3, yBase);
+      doc.text(status, colX[5] + 3, yBase);
       yList += rowH + 6;
     }
     // Rodapé com totais do mês
@@ -2134,8 +2147,17 @@ async function buildRelacaoRecebimentosCSV(startStr, endStr, filters = { status:
   const campoSel = window._campoDataRelatorios || 'data_vencimento';
   const dateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
   const { data: recebimentos } = await db.select('recebimentos', { select: 'cliente_id, descricao, valor_esperado, valor_recebido, status, tipo_recebimento, data_vencimento, data_recebimento' });
-  const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
-  const nomeCliente = (id) => (clientes||[]).find(c => c.id === id)?.nome || '—';
+  const { data: clientes } = await db.select('clientes', { select: 'id, nome, regime_tributario, tipo_empresa' });
+  const mapCli = new Map((clientes||[]).map(c => [c.id, c]));
+  const nomeCliente = (id) => (mapCli.get(id)?.nome) || '—';
+  const tipoEmissaoPorCliente = (id) => {
+    const c = mapCli.get(id);
+    const regime = (c?.regime_tributario || '').toLowerCase();
+    const tipoEmp = (c?.tipo_empresa || '').toLowerCase();
+    if (regime === 'lucro real' && tipoEmp === 'industria') return 'NF Serv c/ Retencao';
+    if (regime === 'lucro real') return 'Emissao NF Serv';
+    return '';
+  };
   const inRange = (ds) => !!ds && ds >= startStr && ds <= endStr;
   const fmtBR = (s) => { if (!s) return '—'; const [y,m,d] = String(s).split('-'); return `${d}/${m}/${y}`; };
   const rows = [];
@@ -2152,6 +2174,7 @@ async function buildRelacaoRecebimentosCSV(startStr, endStr, filters = { status:
           Valor: valor,
           Status: r.status || 'pendente',
           Tipo: r.tipo_recebimento || '—',
+          'Tipo Emissao': tipoEmissaoPorCliente(r.cliente_id) || '',
         });
       }
     }
