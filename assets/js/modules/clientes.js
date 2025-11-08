@@ -172,7 +172,7 @@ export async function renderClientes(app) {
   app.innerHTML = `
     <div class="toolbar">
       <div class="filters">
-        <input id="qCli" placeholder="Pesquisar (nome, email, telefone, documento)" />
+        <input id="qCli" placeholder="Pesquisar (nome, nome fantasia, email, telefone, documento)" />
         <select id="fGrupoCli" style="margin-left:8px">
           <option value="">Todos os grupos</option>
         </select>
@@ -193,7 +193,7 @@ export async function renderClientes(app) {
     const base = (() => {
       if (!q) return rows;
       const term = q.toLowerCase();
-      return rows.filter(r => [r.nome, r.email, r.telefone, r.documento, r.grupo_cliente, r.tipo_empresa, r.regime_tributario]
+      return rows.filter(r => [r.nome, r.nome_fantasia, r.email, r.telefone, r.documento, r.grupo_cliente, r.tipo_empresa, r.regime_tributario]
         .some(v => (v || '').toString().toLowerCase().includes(term))
       );
     })();
