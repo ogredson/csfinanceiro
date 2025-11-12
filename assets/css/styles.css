@@ -36,6 +36,7 @@ body {
 .btn-primary { background: var(--primary); }
 .btn-success { background: var(--success); }
 .btn-danger { background: var(--danger); }
+.btn-warning { background: var(--warning); }
 .btn-outline { background: transparent; border: 1px solid #334155; color: var(--text); }
 .btn-outline:hover { border-color: var(--primary); }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }

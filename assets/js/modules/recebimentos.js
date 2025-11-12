@@ -444,6 +444,165 @@ function gerarRecibo(row, extra = {}) {
   win.document.close();
 }
 
+async function gerarFatura(row, extra = {}) {
+  const fmtDMY = (s) => {
+    if (!s) return '';
+    const [y,m,d] = (s||'').slice(0,10).split('-');
+    return `${d}/${m}/${y}`;
+  };
+  const formatDocumento = (doc) => {
+    const only = (doc||'').replace(/\D+/g,'');
+    if (only.length === 11) {
+      return `${only.slice(0,3)}.${only.slice(3,6)}.${only.slice(6,9)}-${only.slice(9,11)}`;
+    }
+    if (only.length === 14) {
+      return `${only.slice(0,2)}.${only.slice(2,5)}.${only.slice(5,8)}/${only.slice(8,12)}-${only.slice(12,14)}`;
+    }
+    return doc || '';
+  };
+  const { data: cliData } = await db.select('clientes', {
+    select: 'id, nome, documento, logradouro, numero, complemento, bairro, cep, cidade, uf',
+    eq: { id: row.cliente_id }
+  });
+  const cli = (cliData && cliData[0]) || {};
+  const clienteNome = cli.nome || '';
+  const clienteDoc = formatDocumento(cli.documento || '');
+  const clienteEndereco = [cli.logradouro, cli.numero, cli.complemento, cli.bairro].filter(Boolean).join(', ');
+  const clienteCidadeUF = [cli.cidade, cli.uf].filter(Boolean).join('/');
+  const clienteCEP = cli.cep || '';
+
+  const descricaoPrincipal = row.descricao || '';
+  const observacoes = extra.observacoes || row.observacoes || '';
+  const parcelaAtual = Number(extra.parcela_atual || row.parcela_atual || 1);
+  const totalParcelas = Number(extra.total_parcelas || row.total_parcelas || 1);
+  const parcelaStr = `${parcelaAtual}/${totalParcelas}`;
+  const vencimentoStr = fmtDMY(row.data_vencimento || '');
+  const valorStr = formatCurrency(row.valor_esperado || 0);
+  const statusStr = (row.status === 'recebido') ? 'PAGO' : (row.status === 'cancelado') ? 'CANCELADO' : 'PENDENTE';
+  const hojeISO = formatDate();
+  const hojeBR = fmtDMY(hojeISO);
+
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html>
+      <head>
+        <meta charset=\"utf-8\" />
+        <title>Fatura</title>
+        <style>
+          @page { size: A4; margin: 10mm; }
+          body{font-family:Inter,Arial,'Segoe UI',sans-serif;color:#333;font-size:11px;line-height:1.35;}
+          .container{max-width:900px;margin:0 auto;padding:8px 10px;}
+          .header{text-align:center;margin-bottom:10px;}
+          .divider{height:1px;background:#e5e7eb;margin:10px 0;}
+          .id{font-size:10px;color:#666;margin:4px 0 8px 0;text-align:left}
+          h1{font-size:16px;margin:4px 0 0 0;}
+          h2{font-size:13px;color:#1f2937;margin:8px 0}
+          h3{font-size:12px;color:#1f2937;margin:8px 0}
+          .block{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;margin-top:6px}
+          .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+          table{width:100%;border-collapse:collapse;margin-top:6px}
+          th,td{border:1px solid #e5e7eb;padding:6px;text-align:left;vertical-align:top}
+          th{background:#f3f4f6;font-weight:600}
+          .right{text-align:right}
+          ul{margin:6px 0 0 18px;padding:0}
+          li{margin:2px 0}
+          .footer{text-align:center;margin-top:16px;color:#4b5563;font-size:10px}
+        </style>
+      </head>
+      <body>
+        <div class=\"container\">
+          <div class=\"header\">
+            <h1>FATURA / PRESTAÇÃO DE SERVIÇOS - PARCELA</h1>
+          </div>
+          <div class=\"id\"><strong>ID:</strong> ${row.id}</div>
+          <div class=\"divider\"></div>
+
+          <div class=\"grid2\">
+            <div class=\"block\">
+              <h2>EMITENTE:</h2>
+              <p><strong>CONNECT SOFT SERVIÇOS LTDA</strong></p>
+              <p>CNPJ: 03.609.246/0001-53</p>
+              <p>Rua D (Lot Centro Sul), 81 – Sala 01</p>
+              <p>Parangaba – Fortaleza – CE – CEP: 60.740-145</p>
+              <p>E-MAIL: connectsoft@connectsoft.com.br</p>
+              <p>TELEFONE: +55 (85) 9607-1033</p>
+            </div>
+            <div class=\"block\">
+              <h2>CLIENTE:</h2>
+              <p><strong>${clienteNome}</strong></p>
+              <p>CNPJ/CPF: ${clienteDoc || '—'}</p>
+              <p>ENDEREÇO: ${clienteEndereco || '—'}</p>
+              <p>CIDADE/UF: ${clienteCidadeUF || '—'}</p>
+              <p>CEP: ${clienteCEP || '—'}</p>
+            </div>
+          </div>
+
+          <div class=\"divider\"></div>
+
+          <div class=\"block\">
+            <h2>REFERÊNCIA DA FATURA:</h2>
+            <p>${descricaoPrincipal || ''}</p>
+            <p><strong>REFERÊNCIA:</strong> ${sanitizeText(observacoes || '')}</p>
+          </div>
+
+          <div class=\"block\">
+            <h2>DETALHAMENTO DO PARCELAMENTO:</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>PARCELA</th>
+                  <th>VENCIMENTO</th>
+                  <th>VALOR (R$)</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>${parcelaStr}</td>
+                  <td>${vencimentoStr || '—'}</td>
+                  <td class=\"right\">${valorStr}</td>
+                  <td>${statusStr}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p style=\"margin-top:8px;font-weight:600\">VALOR TOTAL: ${valorStr}</p>
+          </div>
+
+          <div class=\"block\">
+            <h2>INSTRUÇÕES PARA PAGAMENTO:</h2>
+            <p>FORMA DE PAGAMENTO: PIX OU TRANSFERÊNCIA BANCÁRIA (TED)</p>
+            <h3>DADOS PARA PIX/TED:</h3>
+            <p>FAVORECIDO: CONNECT SOFT SERVIÇOS LTDA</p>
+            <p>CNPJ: 03.609.246/0001-53</p>
+            <p>BANCO: ITAU</p>
+            <p>AGÊNCIA: 1602 | CONTA: 27464-7 | TIPO: CONTA CORRENTE</p>
+            <p><strong>CHAVE PIX: CONNECTSOFT@CONNECTSOFT.COM.BR</strong></p>
+            <h3>IMPORTANTE:</h3>
+            <ul>
+              <li>ENVIAR COMPROVANTE PARA: connectsoft@connectsoft.com.br</li>
+              <li>INFORMAR NA DESCRIÇÃO DO PAGAMENTO: "PARCELA ${parcelaAtual} - REF ${sanitizeText(descricaoPrincipal || '')}"</li>
+              <li>ESTE DOCUMENTO NÃO É TÍTULO DE CRÉDITO, SERVE COMO DEMONSTRATIVO DO VALOR ACORDADO</li>
+            </ul>
+          </div>
+
+          <div class=\"block\">
+            <h2>OBSERVAÇÕES:</h2>
+            <ul>
+              <li>SERVIÇO CONFORME PROPOSTA/CONTRATO ASSINADOS</li>
+              <li>EM CASO DE ATRASO, SERÃO COBRADOS JUROS DE 1% AO MÊS E MULTA DE 2%</li>
+              <li>DÚVIDAS: ENTRE EM CONTATO COM NOSSO FINANCEIRO</li>
+            </ul>
+          </div>
+
+          <div class=\"footer\">FORTALEZA, ${hojeBR}</div>
+        </div>
+        <script>window.print()</script>
+      </body>
+    </html>
+  `);
+  win.document.close();
+}
+
 async function openRecebido(row) {
   const lookups = await ensureLookups();
   const initial = {
@@ -454,7 +613,9 @@ async function openRecebido(row) {
     valor_esperado: row.valor_esperado || 0,
     data_recebimento: row.data_recebimento || formatDate(),
     valor_recebido: row.valor_recebido || row.valor_esperado || 0,
-    observacoes: row.observacoes || ''
+    observacoes: row.observacoes || '',
+    parcela_atual: row.parcela_atual || 1,
+    total_parcelas: row.total_parcelas || 1
   };
   const content = `
     <form id=\"recbForm\">
@@ -469,6 +630,8 @@ async function openRecebido(row) {
         <div class=\"field\"><label>Valor a Receber</label><input id=\"valor_esperado\" value=\"${formatCurrency(initial.valor_esperado)}\" disabled/></div>
         <div class=\"field\"><label>Data do Recebimento</label><input type=\"date\" id=\"data_recebimento\" value=\"${initial.data_recebimento}\" /></div>
         <div class=\"field\"><label>Valor Recebido</label><input id=\"valor_recebido\" value=\"${formatCurrency(initial.valor_recebido)}\" /></div>
+        <div class=\"field\"><label>Parcela Atual</label><input type=\"number\" id=\"parcela_atual\" value=\"${initial.parcela_atual}\" min=\"1\" /></div>
+        <div class=\"field\"><label>Total Parcelas</label><input type=\"number\" id=\"total_parcelas\" value=\"${initial.total_parcelas}\" min=\"1\" /></div>
         <div class=\"field\" style=\"grid-column:1/-1\"><label>Descrição para o Recibo</label><textarea id=\"descricao_recibo\" rows=\"3\">${initial.observacoes}</textarea></div>
       </div>
     </form>
@@ -483,7 +646,9 @@ async function openRecebido(row) {
       const valorRecStr = modal.querySelector('#valor_recebido')?.value || '0';
       const valorRec = parseCurrency(valorRecStr);
       const descRecibo = modal.querySelector('#descricao_recibo')?.value || null;
-      const payload = { status: 'recebido', data_recebimento: dataRec, valor_recebido: valorRec, observacoes: descRecibo };
+      const parcelaAtual = Number(modal.querySelector('#parcela_atual')?.value || initial.parcela_atual || 1);
+      const totalParcelas = Number(modal.querySelector('#total_parcelas')?.value || initial.total_parcelas || 1);
+      const payload = { status: 'recebido', data_recebimento: dataRec, valor_recebido: valorRec, observacoes: descRecibo, parcela_atual: parcelaAtual, total_parcelas: totalParcelas };
       if (formaId) payload.forma_pagamento_id = formaId;
       const { error } = await db.update('recebimentos', row.id, payload);
       if (error) { showToast(error.message||'Erro ao atualizar recebimento', 'error'); return; }
@@ -498,6 +663,12 @@ async function openRecebido(row) {
       const valorRec = parseCurrency(valorRecStr);
       const descRecibo = modal.querySelector('#descricao_recibo')?.value || '';
       gerarRecibo(row, { cliente_nome: lookups.mapCli.get(row.cliente_id)||'', cliente_documento: lookups.mapCliDoc.get(row.cliente_id)||'', forma_pagamento_nome: formaNome, valor_recebido: valorRec, data_recebimento: dataRec, descricao_recibo: descRecibo });
+    }},
+    { label: 'Emitir Fatura', className: 'btn btn-warning btn-prominent', onClick: async () => {
+      const parcelaAtual = Number(modal.querySelector('#parcela_atual')?.value || initial.parcela_atual || 1);
+      const totalParcelas = Number(modal.querySelector('#total_parcelas')?.value || initial.total_parcelas || 1);
+      const observacoes = modal.querySelector('#descricao_recibo')?.value || row.observacoes || '';
+      await gerarFatura(row, { parcela_atual: parcelaAtual, total_parcelas: totalParcelas, observacoes });
     }}
   ]});
 }
