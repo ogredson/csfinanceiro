@@ -712,6 +712,43 @@ export async function renderRelatorios(app) {
                 <option value="analitico">Analítico</option>
               </select>
             </label>
+            <!-- Filtros aplicados ao Fluxo de Caixa -->
+            <label style="display:inline-flex;align-items:center;gap:6px;">
+              Status (Rec)
+              <select id="fluxStatusRec" style="width:140px;">
+                <option value="todos" selected>Todos</option>
+                <option value="pendente">Pendente</option>
+                <option value="recebido">Recebido</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;">
+              Tipo (Rec)
+              <select id="fluxTipoRec" style="width:140px;">
+                <option value="todos" selected>Todos</option>
+                <option value="mensal">Mensal</option>
+                <option value="avulso">Avulso</option>
+                <option value="parcelado">Parcelado</option>
+              </select>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;">
+              Status (Pag)
+              <select id="fluxStatusPag" style="width:140px;">
+                <option value="todos" selected>Todos</option>
+                <option value="pendente">Pendente</option>
+                <option value="pago">Pago</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:6px;">
+              Tipo (Pag)
+              <select id="fluxTipoPag" style="width:140px;">
+                <option value="todos" selected>Todos</option>
+                <option value="fixo">Fixo</option>
+                <option value="avulso">Avulso</option>
+                <option value="parcelado">Parcelado</option>
+              </select>
+            </label>
             <button id="btnFluxo" class="btn btn-outline">Gerar Fluxo de Caixa</button>
             <button id="btnFluxoCat" class="btn btn-outline">Gerar fluxo de caixa por categorias</button>
           </div>
@@ -892,8 +929,14 @@ export async function renderRelatorios(app) {
     const dtFimVal = document.getElementById('dtFim').value;
     const saldoInicial = Number(document.getElementById('saldoInicial').value || 0);
     const tipoRelatorio = document.getElementById('tipoRelatorio').value;
+    const filters = {
+      rec_status: document.getElementById('fluxStatusRec')?.value || 'todos',
+      rec_tipo: document.getElementById('fluxTipoRec')?.value || 'todos',
+      pag_status: document.getElementById('fluxStatusPag')?.value || 'todos',
+      pag_tipo: document.getElementById('fluxTipoPag')?.value || 'todos',
+    };
     window._campoDataRelatorios = document.getElementById('campoData').value;
-    try { await gerarFluxoCaixaPDF(dtInicioVal, dtFimVal, saldoInicial, tipoRelatorio); } catch (e) { console.error(e); showToast('Falha ao gerar fluxo de caixa em PDF', 'error'); }
+    try { await gerarFluxoCaixaPDF(dtInicioVal, dtFimVal, saldoInicial, tipoRelatorio, filters); } catch (e) { console.error(e); showToast('Falha ao gerar fluxo de caixa em PDF', 'error'); }
   });
 
   document.getElementById('btnFluxoCat').addEventListener('click', async () => {
@@ -902,7 +945,13 @@ export async function renderRelatorios(app) {
     const saldoInicial = Number(document.getElementById('saldoInicial').value || 0);
     const tipoRelatorio = document.getElementById('tipoRelatorio').value;
     window._campoDataRelatorios = document.getElementById('campoData').value;
-    try { await gerarFluxoCaixaPorCategoriasPDF(dtInicioVal, dtFimVal, saldoInicial, tipoRelatorio); } catch (e) { console.error(e); showToast('Falha ao gerar fluxo por categorias em PDF', 'error'); }
+    const filters = {
+      rec_status: document.getElementById('fluxStatusRec')?.value || 'todos',
+      rec_tipo: document.getElementById('fluxTipoRec')?.value || 'todos',
+      pag_status: document.getElementById('fluxStatusPag')?.value || 'todos',
+      pag_tipo: document.getElementById('fluxTipoPag')?.value || 'todos',
+    };
+    try { await gerarFluxoCaixaPorCategoriasPDF(dtInicioVal, dtFimVal, saldoInicial, tipoRelatorio, filters); } catch (e) { console.error(e); showToast('Falha ao gerar fluxo por categorias em PDF', 'error'); }
   });
 
   // Relatórios Gerenciais – Evolução Receitas x Despesas
@@ -965,7 +1014,7 @@ function shortenForCalendar(text) {
 }
 
 // Função para gerar PDF de Fluxo de Caixa Analítico (linha a linha)
-async function gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, recebimentos, pagamentos, recDateField, pagDateField, parseDate, inRange, blue, red, margin, pageWidth, pageHeight, mapCli, mapForn) {
+async function gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, recebimentos, pagamentos, recDateField, pagDateField, parseDate, inRange, blue, red, margin, pageWidth, pageHeight, mapCli, mapForn, filters) {
   // Título
   doc.setTextColor(...blue); doc.setFontSize(18);
   const fmtDMY = s => { if (!s) return '—'; const [y,m,d] = String(s).split('-'); return `${d}-${m}-${y}`; };
@@ -974,10 +1023,15 @@ async function gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, rec
   // Coletar todas as transações no período
   const transacoes = [];
   
-  // Adicionar recebimentos
+  // Adicionar recebimentos (com filtros opcionais)
   (recebimentos||[]).forEach(r => {
     const ds = r[recDateField];
-    if (inRange(ds)) {
+    const ok = (
+      !filters || filters.rec_status === 'todos' || (String(r.status||'').toLowerCase() === String(filters.rec_status||'todos'))
+    ) && (
+      !filters || filters.rec_tipo === 'todos' || (String(r.tipo_recebimento||'').toLowerCase() === String(filters.rec_tipo||'todos'))
+    );
+    if (inRange(ds) && ok) {
       const valor = (r.status === 'recebido') ? (r.valor_recebido || 0) : (r.valor_esperado || 0);
       if (valor > 0) {
         transacoes.push({
@@ -992,10 +1046,15 @@ async function gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, rec
     }
   });
 
-  // Adicionar pagamentos
+  // Adicionar pagamentos (com filtros opcionais)
   (pagamentos||[]).forEach(p => {
     const ds = p[pagDateField];
-    if (inRange(ds)) {
+    const ok = (
+      !filters || filters.pag_status === 'todos' || (String(p.status||'').toLowerCase() === String(filters.pag_status||'todos'))
+    ) && (
+      !filters || filters.pag_tipo === 'todos' || (String(p.tipo_pagamento||'').toLowerCase() === String(filters.pag_tipo||'todos'))
+    );
+    if (inRange(ds) && ok) {
       const valor = (p.status === 'pago') ? (p.valor_pago || 0) : (p.valor_esperado || 0);
       if (valor > 0) {
         transacoes.push({
@@ -1013,35 +1072,43 @@ async function gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, rec
   // Ordenar por data
   transacoes.sort((a, b) => a.data.localeCompare(b.data));
 
-  // Cabeçalho da tabela
+  // Cabeçalho da tabela — usa larguras proporcionais à área útil
+  const contentWidth = pageWidth - margin * 2;
   const cols = [
-    { label: 'Data', width: 70 },
-    { label: 'Tipo', width: 40 },
-    { label: 'Nome', width: 170 },
-    { label: 'Descrição', width: 250 },
-    { label: 'Valor', width: 85 },
-    { label: 'Status', width: 60 },
-    { label: 'Saldo Acumulado', width: 115 }
+    { label: 'Data',             width: contentWidth * 0.11 },
+    { label: 'Tipo',             width: contentWidth * 0.06 },
+    { label: 'Nome',             width: contentWidth * 0.22 },
+    { label: 'Descrição',        width: contentWidth * 0.33 },
+    { label: 'Valor',            width: contentWidth * 0.10 },
+    { label: 'Status',           width: contentWidth * 0.08 },
+    { label: 'Saldo Acumulado',  width: contentWidth * 0.10 },
   ];
-  
-  const colX = []; 
-  let acc = margin; 
-  for (let i = 0; i < cols.length; i++) { 
-    colX.push(acc); 
-    acc += cols[i].width; 
+
+  const colX = [];
+  let acc = margin;
+  for (let i = 0; i < cols.length; i++) {
+    colX.push(acc);
+    acc += cols[i].width;
   }
-  
+
   const tableTop = margin + 34;
+  // Header mais compacto para garantir espaço
   doc.setFontSize(11); doc.setTextColor(...blue);
-  for (let i = 0; i < cols.length; i++) { 
-    doc.text(cols[i].label, colX[i] + 3, tableTop); 
+  for (let i = 0; i < cols.length; i++) {
+    doc.text(cols[i].label, colX[i] + 3, tableTop);
   }
-  doc.setDrawColor(...blue); 
+  doc.setDrawColor(...blue);
   doc.line(margin, tableTop + 4, pageWidth - margin, tableTop + 4);
 
   let yList = tableTop + 16;
-  doc.setTextColor(0,0,0); doc.setFontSize(10);
+  // Linhas com fonte 9 para caber melhor
+  doc.setTextColor(0,0,0); doc.setFontSize(9);
   let saldoAcum = Number(saldoInicial || 0);
+
+  // Alturas e reservas
+  const rowHeight = 16;           // altura padrão da linha
+  const rowTopOffset = 12;        // texto começa ~12px abaixo do topo da linha
+  const footerReserve = 64;       // reserva maior para evitar corte no rodapé
 
   // Helpers para layout
   const fitText = (txt, maxW) => {
@@ -1055,17 +1122,28 @@ async function gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, rec
     return m[k] || (s || '—');
   };
 
-  // Função para garantir cabeçalho em nova página
+  // Garante cabeçalho ao abrir nova página
   const ensureHeader = () => {
     doc.setTextColor(...blue); doc.setFontSize(18);
     doc.text(`Fluxo de Caixa Analítico - ${fmtDMY(startStr)} a ${fmtDMY(endStr)}`, pageWidth/2, margin + 10, { align: 'center' });
     doc.setFontSize(11); doc.setTextColor(...blue);
-    for (let i = 0; i < cols.length; i++) { 
-      doc.text(cols[i].label, colX[i] + 3, tableTop); 
+    for (let i = 0; i < cols.length; i++) {
+      doc.text(cols[i].label, colX[i] + 3, tableTop);
     }
-    doc.setDrawColor(...blue); 
+    doc.setDrawColor(...blue);
     doc.line(margin, tableTop + 4, pageWidth - margin, tableTop + 4);
-    doc.setTextColor(0,0,0); doc.setFontSize(10);
+    doc.setTextColor(0,0,0); doc.setFontSize(9);
+  };
+
+  // Garante espaço para a próxima linha/subtotal antes de desenhar
+  const ensureSpace = (needed = rowHeight) => {
+    const limitY = pageHeight - margin - footerReserve;
+    const neededTotal = needed + rowTopOffset; // considera o topo do retângulo/linha
+    if (yList + neededTotal > limitY) {
+      doc.addPage();
+      yList = tableTop + 16;
+      ensureHeader();
+    }
   };
 
   // Renderizar transações com subtotal diário
@@ -1075,11 +1153,7 @@ async function gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, rec
 
   const renderSubtotal = () => {
     if (!currentDay) return;
-    if (yList > pageHeight - 60) {
-      doc.addPage();
-      yList = tableTop + 16;
-      ensureHeader();
-    }
+    ensureSpace(rowHeight);
     doc.setTextColor(...blue); doc.setFontSize(10);
     doc.text(fmtDMY(currentDay), colX[0] + 3, yList);
     doc.text('Subtotal do dia', colX[1] + 3, yList);
@@ -1091,7 +1165,7 @@ async function gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, rec
     doc.setTextColor(...(saldoAcum >= 0 ? [0, 128, 0] : red));
     doc.text(formatCurrency(saldoAcum), colX[6] + cols[6].width - 3, yList, { align: 'right' });
     doc.setTextColor(0,0,0); doc.setFontSize(10);
-    yList += 16;
+    yList += rowHeight;
     entradasDia = 0; saídasDia = 0;
   };
 
@@ -1100,46 +1174,37 @@ async function gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, rec
     if (currentDay && t.data !== currentDay) {
       renderSubtotal();
     }
-    if (!currentDay) currentDay = t.data; else currentDay = t.data;
+    currentDay = t.data;
 
-    if (yList > pageHeight - 60) {
-      doc.addPage();
-      yList = tableTop + 16;
-      ensureHeader();
-    }
+    // Garante espaço para a linha inteira antes de desenhar
+    ensureSpace(rowHeight);
 
     saldoAcum += t.valor;
 
     // Acumular subtotais do dia
     if (t.valor >= 0) entradasDia += t.valor; else saídasDia += (-t.valor);
     
-    // Destacar linhas com saldo negativo
+    // Destacar linhas com saldo negativo — garantir espaço e desenhar dentro da linha
     if (saldoAcum < 0) {
+      ensureSpace(rowHeight);
       doc.setFillColor(255, 240, 240);
-      doc.rect(margin, yList - 12, pageWidth - margin * 2, 14, 'F');
+      doc.rect(margin, yList - rowTopOffset, pageWidth - margin * 2, rowHeight - 2, 'F'); // topo consistente e altura fixa
     }
 
     doc.text(fmtDMY(t.data), colX[0] + 3, yList);
     doc.text(t.tipo === 'Pagamento' ? 'P' : 'R', colX[1] + 3, yList);
     doc.text(fitText(t.nome || '—', cols[2].width), colX[2] + 3, yList);
-    
-    // Ajuste de descrição para caber na coluna
     const desc = fitText(t.descricao || '—', cols[3].width);
     doc.text(desc, colX[3] + 3, yList);
-    
-    // Valor com cor (verde para positivo, vermelho para negativo) e alinhado à direita
     doc.setTextColor(...(t.valor >= 0 ? [0, 128, 0] : red));
     doc.text(formatCurrency(Math.abs(t.valor)), colX[4] + cols[4].width - 3, yList, { align: 'right' });
-    
     doc.setTextColor(0,0,0);
     doc.text(abbrStatus(t.status), colX[5] + 3, yList);
-    
-    // Saldo acumulado com cor (alinhado à direita)
     doc.setTextColor(...(saldoAcum >= 0 ? [0, 128, 0] : red));
     doc.text(formatCurrency(saldoAcum), colX[6] + cols[6].width - 3, yList, { align: 'right' });
     doc.setTextColor(0,0,0);
 
-    yList += 16;
+    yList += rowHeight;
   }
 
   // Subtotal do último dia
@@ -1158,7 +1223,7 @@ async function gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, rec
 }
 
 // Função para gerar PDF de Fluxo de Caixa diário
-async function gerarFluxoCaixaPDF(startStr, endStr, saldoInicial, tipoRelatorio = 'sintetico') {
+async function gerarFluxoCaixaPDF(startStr, endStr, saldoInicial, tipoRelatorio = 'sintetico', filters = { rec_status:'todos', rec_tipo:'todos', pag_status:'todos', pag_tipo:'todos' }) {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
@@ -1173,8 +1238,8 @@ async function gerarFluxoCaixaPDF(startStr, endStr, saldoInicial, tipoRelatorio 
   const recDateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
   const pagDateField = (campoSel === 'data_pagamento') ? 'data_pagamento' : 'data_vencimento';
 
-  const { data: recebimentos } = await db.select('recebimentos', { select: 'descricao, valor_esperado, valor_recebido, status, data_vencimento, data_recebimento, cliente_id' });
-  const { data: pagamentos } = await db.select('pagamentos', { select: 'descricao, valor_esperado, valor_pago, status, data_vencimento, data_pagamento, fornecedor_id' });
+  const { data: recebimentos } = await db.select('recebimentos', { select: 'descricao, valor_esperado, valor_recebido, status, tipo_recebimento, data_vencimento, data_recebimento, cliente_id' });
+  const { data: pagamentos } = await db.select('pagamentos', { select: 'descricao, valor_esperado, valor_pago, status, tipo_pagamento, data_vencimento, data_pagamento, fornecedor_id' });
   const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
   const { data: fornecedores } = await db.select('fornecedores', { select: 'id, nome' });
   const mapCli = new Map((clientes||[]).map(c => [c.id, c.nome]));
@@ -1198,20 +1263,30 @@ async function gerarFluxoCaixaPDF(startStr, endStr, saldoInicial, tipoRelatorio 
 
   // Decidir qual tipo de relatório gerar
   if (tipoRelatorio === 'analitico') {
-    return await gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, recebimentos, pagamentos, recDateField, pagDateField, parseDate, inRange, blue, red, margin, pageWidth, pageHeight, mapCli, mapForn);
+    return await gerarFluxoCaixaAnalitico(doc, startStr, endStr, saldoInicial, recebimentos, pagamentos, recDateField, pagDateField, parseDate, inRange, blue, red, margin, pageWidth, pageHeight, mapCli, mapForn, filters);
   }
 
-  // Continuar com relatório sintético (código atual)
+  // Sintético com filtros
 
   (recebimentos||[]).forEach(r => {
     const ds = r[recDateField];
-    if (!ds || !inRange(ds)) return;
+    const ok = (
+      (!filters || filters.rec_status === 'todos' || (String(r.status||'').toLowerCase() === String(filters.rec_status||'todos')))
+    ) && (
+      (!filters || filters.rec_tipo === 'todos' || (String(r.tipo_recebimento||'').toLowerCase() === String(filters.rec_tipo||'todos')))
+    );
+    if (!ds || !inRange(ds) || !ok) return;
     const val = Number(recDateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
     const day = dayMap.get(ds); if (day) day.entradas += val;
   });
   (pagamentos||[]).forEach(p => {
     const ds = p[pagDateField];
-    if (!ds || !inRange(ds)) return;
+    const ok = (
+      (!filters || filters.pag_status === 'todos' || (String(p.status||'').toLowerCase() === String(filters.pag_status||'todos')))
+    ) && (
+      (!filters || filters.pag_tipo === 'todos' || (String(p.tipo_pagamento||'').toLowerCase() === String(filters.pag_tipo||'todos')))
+    );
+    if (!ds || !inRange(ds) || !ok) return;
     const val = Number(pagDateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0));
     const day = dayMap.get(ds); if (day) day.saidas += val;
   });
@@ -1378,7 +1453,7 @@ async function gerarFluxoCaixaPDF(startStr, endStr, saldoInicial, tipoRelatorio 
   }
 
 // Fluxo de Caixa por Categoria – Sintético/Analítico
-async function gerarFluxoCaixaPorCategoriasPDF(startStr, endStr, saldoInicial, tipoRelatorio = 'sintetico') {
+async function gerarFluxoCaixaPorCategoriasPDF(startStr, endStr, saldoInicial, tipoRelatorio = 'sintetico', filters = { rec_status:'todos', rec_tipo:'todos', pag_status:'todos', pag_tipo:'todos' }) {
   const { jsPDF } = window.jspdf || {};
   if (!jsPDF) { showToast('Biblioteca jsPDF não carregada', 'error'); return; }
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
@@ -1392,9 +1467,8 @@ async function gerarFluxoCaixaPorCategoriasPDF(startStr, endStr, saldoInicial, t
   const campoSel = window._campoDataRelatorios || 'data_vencimento';
   const recDateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
   const pagDateField = (campoSel === 'data_pagamento') ? 'data_pagamento' : 'data_vencimento';
-  // Expandimos seleção para suportar analítico (descrição e contraparte)
-  const { data: recebimentos } = await db.select('recebimentos', { select: 'categoria_id, descricao, valor_esperado, valor_recebido, status, data_vencimento, data_recebimento, cliente_id' });
-  const { data: pagamentos } = await db.select('pagamentos', { select: 'categoria_id, descricao, valor_esperado, valor_pago, status, data_vencimento, data_pagamento, fornecedor_id' });
+  const { data: recebimentos } = await db.select('recebimentos', { select: 'categoria_id, descricao, valor_esperado, valor_recebido, status, tipo_recebimento, data_vencimento, data_recebimento, cliente_id' });
+  const { data: pagamentos } = await db.select('pagamentos', { select: 'categoria_id, descricao, valor_esperado, valor_pago, status, tipo_pagamento, data_vencimento, data_pagamento, fornecedor_id' });
   const { data: categorias } = await db.select('categorias', { select: 'id, nome, tipo' });
   const { data: clientes } = await db.select('clientes', { select: 'id, nome' });
   const { data: fornecedores } = await db.select('fornecedores', { select: 'id, nome' });
@@ -1406,7 +1480,6 @@ async function gerarFluxoCaixaPorCategoriasPDF(startStr, endStr, saldoInicial, t
   const parseDate = (s) => { if (!s) return null; const [y,m,d] = s.split('-'); return new Date(Number(y), Number(m)-1, Number(d)); };
   const inRange = (s) => { const dt = parseDate(s); if (!dt) return false; const a = parseDate(startStr); const b = parseDate(endStr); return dt >= a && dt <= b; };
 
-  // Se o tipo for analítico, gerar relatório detalhado e sair
   if (tipoRelatorio === 'analitico') {
     const fmtDMY = s => { if (!s) return '—'; const [y,m,d] = String(s).split('-'); return `${d}/${m}/${y}`; };
     // Cabeçalho
@@ -1422,18 +1495,17 @@ async function gerarFluxoCaixaPorCategoriasPDF(startStr, endStr, saldoInicial, t
     doc.text(saldoIniStr, pageWidth - margin - doc.getTextWidth(saldoIniStr), margin + 22);
 
     // Layout em tabela sem bordas visíveis, fonte menor
-    const valueColWidth = 120; // coluna de valores fixa à direita
+    const valueColWidth = 120;
     const col1X = margin;
-    const col2X = pageWidth - margin - valueColWidth; // início da coluna de valor
+    const col2X = pageWidth - margin - valueColWidth;
     let y = margin + 50;
-    const rowHeight = 16; // altura consistente por linha
+    const rowHeight = 16;
     const tableWidth = pageWidth - margin * 2;
     const contentWidth = tableWidth - valueColWidth;
-    // Larguras: Descricao, Fornecedor/Cliente, Data, Status (somam contentWidth)
-    const descW = Math.floor(contentWidth * 0.40); // ~40%
-    const partyW = Math.floor(contentWidth * 0.33); // ~33%
-    const dataW = Math.floor(contentWidth * 0.15); // ~15% (mais espaço)
-    const statusW = contentWidth - descW - partyW - dataW; // ~12% (leva o Status mais à direita)
+    const descW = Math.floor(contentWidth * 0.40);
+    const partyW = Math.floor(contentWidth * 0.33);
+    const dataW = Math.floor(contentWidth * 0.15);
+    const statusW = contentWidth - descW - partyW - dataW;
     const colX = [col1X, col1X + descW, col1X + descW + partyW, col1X + descW + partyW + dataW, col2X];
     const pad = 6;
     const truncateToWidth = (txt, maxW) => {
@@ -1444,7 +1516,6 @@ async function gerarFluxoCaixaPorCategoriasPDF(startStr, endStr, saldoInicial, t
       return t + ell;
     };
     const drawSectionBand = (sectionColor) => {
-      // Faixa suave para cabeçalho de seção
       const bandColor = (sectionColor === blue) ? [240,248,255] : [255,240,240];
       doc.setFillColor(...bandColor);
       doc.rect(col1X, y - 12, tableWidth, 20, 'F');
@@ -1472,104 +1543,99 @@ async function gerarFluxoCaixaPorCategoriasPDF(startStr, endStr, saldoInicial, t
         drawSectionBand(sectionColor);
         drawTableHeader();
         if (currentCat) {
-          // Reimprime a faixa da categoria com subtotal à direita
-          doc.setFont('helvetica','bold'); doc.setFontSize(10);
+          doc.setFont('helvetica','bold');
+          doc.setFontSize(10);
           doc.setFillColor(245,245,245);
           doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
           doc.text(currentCat.name, colX[0] + pad, y);
-          if (currentCat.subtotalStr) doc.text(currentCat.subtotalStr, colX[4] + valueColWidth - pad, y, { align: 'right' });
+          if (currentCat.subtotalStr) {
+            doc.text(currentCat.subtotalStr, colX[4] + valueColWidth - pad, y, { align: 'right' });
+          }
           doc.setFont('helvetica','normal');
           y += rowHeight;
         }
       }
     };
 
-    // Agrupamento de receitas por categoria (tipo entrada)
+    // Agrupamento por categoria
     const receitasPorCat = new Map();
-    (recebimentos||[]).forEach(r => {
+    const despesasPorCat = new Map();
+
+    (recebimentos || []).forEach(r => {
       const ds = r[recDateField];
       if (!ds || !inRange(ds)) return;
-      const val = Number(recDateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
-      if (!(val > 0)) return;
-      const tipo = tipoCategoria(r.categoria_id);
-      if (tipo && String(tipo).toLowerCase() !== 'entrada') return;
-      const catName = nomeCategoria(r.categoria_id);
+      // APLICAR FILTROS DE RECEBIMENTOS
+      const okStatus = !filters || filters.rec_status === 'todos' || (String(r.status || '').toLowerCase() === String(filters.rec_status));
+      const okTipo   = !filters || filters.rec_tipo   === 'todos' || (String(r.tipo_recebimento || '').toLowerCase() === String(filters.rec_tipo));
+      if (!(okStatus && okTipo)) return;
+
+      const catId = r.categoria_id;
+      if (tipoCategoria(catId) !== 'entrada') return;
+      const valor = Number(recDateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
+      if (valor <= 0) return;
+      const catName = nomeCategoria(catId);
       const arr = receitasPorCat.get(catName) || [];
-      arr.push({
-        descricao: r.descricao || '—',
-        contraparte: mapCli.get(r.cliente_id) || '—',
-        dataStr: fmtDMY(ds),
-        status: r.status || '—',
-        valor: val
-      });
+      arr.push({ desc: r.descricao || '—', party: (mapCli.get(r.cliente_id) || '—'), data: ds, status: r.status || 'pendente', valor });
       receitasPorCat.set(catName, arr);
     });
 
-    // Agrupamento de despesas por categoria (tipo saida)
-    const despesasPorCat = new Map();
-    (pagamentos||[]).forEach(p => {
+    (pagamentos || []).forEach(p => {
       const ds = p[pagDateField];
       if (!ds || !inRange(ds)) return;
-      const val = Number(pagDateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0));
-      if (!(val > 0)) return;
-      const tipo = tipoCategoria(p.categoria_id);
-      if (tipo && String(tipo).toLowerCase() !== 'saida') return;
-      const catName = nomeCategoria(p.categoria_id);
+      // APLICAR FILTROS DE PAGAMENTOS
+      const okStatus = !filters || filters.pag_status === 'todos' || (String(p.status || '').toLowerCase() === String(filters.pag_status));
+      const okTipo   = !filters || filters.pag_tipo   === 'todos' || (String(p.tipo_pagamento || '').toLowerCase() === String(filters.pag_tipo));
+      if (!(okStatus && okTipo)) return;
+
+      const catId = p.categoria_id;
+      if (tipoCategoria(catId) !== 'saida') return;
+      const valor = Number(pagDateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0));
+      if (valor <= 0) return;
+      const catName = nomeCategoria(catId);
       const arr = despesasPorCat.get(catName) || [];
-      arr.push({
-        descricao: p.descricao || '—',
-        contraparte: mapForn.get(p.fornecedor_id) || '—',
-        dataStr: fmtDMY(ds),
-        status: p.status || '—',
-        valor: val
-      });
+      arr.push({ desc: p.descricao || '—', party: (mapForn.get(p.fornecedor_id) || '—'), data: ds, status: p.status || 'pendente', valor });
       despesasPorCat.set(catName, arr);
     });
 
-    const sumVals = arr => (arr||[]).reduce((a,b)=>a + (b.valor||0), 0);
-    const totalReceitas = Array.from(receitasPorCat.values()).reduce((a,b)=>a + sumVals(b), 0);
-    const totalDespesas = Array.from(despesasPorCat.values()).reduce((a,b)=>a + sumVals(b), 0);
-    const saldoFinal = Number(saldoInicial||0) + totalReceitas - totalDespesas;
+    const sumVals = (items) => sum((items || []).map(it => Number(it.valor || 0)));
+    const totalReceitas = sum(Array.from(receitasPorCat.values()).map(sumVals)) || 0;
+    const totalDespesas = sum(Array.from(despesasPorCat.values()).map(sumVals)) || 0;
 
     // Seção Receitas
     drawSectionBand(blue);
     drawTableHeader();
-    const receitasCats = Array.from(receitasPorCat.entries())
-      .sort((a,b)=> sumVals(b[1]) - sumVals(a[1]));
-    receitasCats.forEach(([catName, items]) => {
-      const subtotal = sumVals(items);
-      const subtotalStr = formatCurrency(subtotal);
-      // Cabeçalho de categoria (faixa suave com subtotal à direita)
-      doc.setFont('helvetica','bold'); doc.setFontSize(10);
-      doc.setFillColor(245,245,245);
-      doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
-      doc.text(catName, colX[0] + pad, y);
-      doc.text(subtotalStr, colX[4] + valueColWidth - pad, y, { align: 'right' });
-      doc.setFont('helvetica','normal');
-      y += rowHeight;
-      ensurePage(blue, { name: catName, subtotalStr });
-      // Itens
-      items.sort((a,b)=> a.dataStr.localeCompare(b.dataStr));
-      const itemDescIndent = 12;
-      items.forEach((it, idx) => {
-        // zebra suave sem borda
-        if (idx % 2 === 1) { doc.setFillColor(245,245,245); doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F'); }
-        // textos com truncamento por coluna e fonte menor
-        const descTxt = truncateToWidth(it.descricao, descW - pad*2 - itemDescIndent);
-        const partyTxt = truncateToWidth(it.contraparte, partyW - pad*2);
-        const dateTxt = truncateToWidth(it.dataStr, dataW - pad*2);
-        const statusTxt = truncateToWidth(it.status, statusW - pad*2);
-        doc.text(descTxt, colX[0] + pad + itemDescIndent, y);
-        doc.text(partyTxt, colX[1] + pad, y);
-        doc.text(dateTxt, colX[2] + pad, y);
-        doc.text(statusTxt, colX[3] + pad, y);
-        doc.text(formatCurrency(it.valor), colX[4] + valueColWidth - pad, y, { align: 'right' });
-        y += rowHeight;
-        ensurePage(blue, { name: catName, subtotalStr });
-      });
-    });
+    const receitasCats = Array.from(receitasPorCat.entries()).sort((a,b) => sumVals(b[1]) - sumVals(a[1]));
 
-    // Total Receitas (faixa suave)
+    if (receitasCats.length === 0) {
+      doc.setTextColor(120,120,120); doc.setFontSize(10);
+      doc.text('Sem receitas no período com filtros aplicados', col1X + pad, y);
+      y += rowHeight;
+      doc.setTextColor(0,0,0); doc.setFontSize(9);
+    } else {
+      receitasCats.forEach(([catName, items]) => {
+        ensurePage(blue, null);
+        const subtotal = sumVals(items);
+        doc.setFont('helvetica','bold'); doc.setFontSize(10);
+        doc.setFillColor(245,245,245);
+        doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
+        doc.text(catName, colX[0] + pad, y);
+        doc.text(formatCurrency(subtotal), colX[4] + valueColWidth - pad, y, { align: 'right' });
+        doc.setFont('helvetica','normal');
+        y += rowHeight;
+
+        items.forEach(it => {
+          ensurePage(blue, null);
+          doc.text(truncateToWidth(it.desc, descW - pad), colX[0] + pad, y);
+          doc.text(truncateToWidth(it.party, partyW - pad), colX[1] + pad, y);
+          doc.text(fmtDMY(it.data), colX[2] + pad, y);
+          doc.text(it.status || '—', colX[3] + pad, y);
+          doc.text(formatCurrency(it.valor), colX[4] + valueColWidth - pad, y, { align: 'right' });
+          y += rowHeight;
+        });
+      });
+    }
+
+    // Total Receitas
     doc.setFont('helvetica','bold'); doc.setTextColor(...blue);
     doc.setFillColor(240,248,255);
     doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
@@ -1581,205 +1647,219 @@ async function gerarFluxoCaixaPorCategoriasPDF(startStr, endStr, saldoInicial, t
     // Seção Despesas
     drawSectionBand(red);
     drawTableHeader();
-    const despesasCats = Array.from(despesasPorCat.entries())
-      .sort((a,b)=> sumVals(b[1]) - sumVals(a[1]));
-    despesasCats.forEach(([catName, items]) => {
-      const subtotal = sumVals(items);
-      const subtotalStr = formatCurrency(subtotal);
-      // Cabeçalho de categoria
-      doc.setFont('helvetica','bold'); doc.setFontSize(10);
-      doc.setFillColor(245,245,245);
-      doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
-      doc.text(catName, colX[0] + pad, y);
-      doc.text(subtotalStr, colX[4] + valueColWidth - pad, y, { align: 'right' });
-      doc.setFont('helvetica','normal');
-      y += rowHeight;
-      ensurePage(red, { name: catName, subtotalStr });
-      // Itens
-      items.sort((a,b)=> a.dataStr.localeCompare(b.dataStr));
-      const itemDescIndent2 = 12;
-      items.forEach((it, idx) => {
-        if (idx % 2 === 1) { doc.setFillColor(245,245,245); doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F'); }
-        const descTxt = truncateToWidth(it.descricao, descW - pad*2 - itemDescIndent2);
-        const partyTxt = truncateToWidth(it.contraparte, partyW - pad*2);
-        const dateTxt = truncateToWidth(it.dataStr, dataW - pad*2);
-        const statusTxt = truncateToWidth(it.status, statusW - pad*2);
-        doc.text(descTxt, colX[0] + pad + itemDescIndent2, y);
-        doc.text(partyTxt, colX[1] + pad, y);
-        doc.text(dateTxt, colX[2] + pad, y);
-        doc.text(statusTxt, colX[3] + pad, y);
-        doc.text(formatCurrency(it.valor), colX[4] + valueColWidth - pad, y, { align: 'right' });
-        y += rowHeight;
-        ensurePage(red, { name: catName, subtotalStr });
-      });
-    });
+    const despesasCats = Array.from(despesasPorCat.entries()).sort((a,b) => sumVals(b[1]) - sumVals(a[1]));
 
-    // Total Despesas (faixa suave)
+    if (despesasCats.length === 0) {
+      doc.setTextColor(120,120,120); doc.setFontSize(10);
+      doc.text('Sem despesas no período com filtros aplicados', col1X + pad, y);
+      y += rowHeight;
+      doc.setTextColor(0,0,0); doc.setFontSize(9);
+    } else {
+      despesasCats.forEach(([catName, items]) => {
+        ensurePage(red, null);
+        const subtotal = sumVals(items);
+        doc.setFont('helvetica','bold'); doc.setFontSize(10);
+        doc.setFillColor(245,245,245);
+        doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
+        doc.text(catName, colX[0] + pad, y);
+        doc.text(formatCurrency(subtotal), colX[4] + valueColWidth - pad, y, { align: 'right' });
+        doc.setFont('helvetica','normal');
+        y += rowHeight;
+
+        items.forEach(it => {
+          ensurePage(red, null);
+          doc.text(truncateToWidth(it.desc, descW - pad), colX[0] + pad, y);
+          doc.text(truncateToWidth(it.party, partyW - pad), colX[1] + pad, y);
+          doc.text(fmtDMY(it.data), colX[2] + pad, y);
+          doc.text(it.status || '—', colX[3] + pad, y);
+          doc.text(formatCurrency(it.valor), colX[4] + valueColWidth - pad, y, { align: 'right' });
+          y += rowHeight;
+        });
+      });
+    }
+
+    // Total Despesas
     doc.setFont('helvetica','bold'); doc.setTextColor(...red);
     doc.setFillColor(255,240,240);
     doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
     doc.text('Total Despesas', colX[0] + pad, y);
     doc.text(formatCurrency(totalDespesas), colX[4] + valueColWidth - pad, y, { align: 'right' });
     doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-    y += rowHeight;
 
-    // Saldo final (faixa, sem borda) com cor condicional
-    const saldoColor = (saldoFinal >= 0) ? blue : red;
-    doc.setTextColor(...saldoColor); doc.setFontSize(12);
-    doc.setFont('helvetica','bold');
-    const bandColor = (saldoFinal >= 0) ? [240,248,255] : [255,240,240];
-    doc.setFillColor(...bandColor);
-    doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
-    doc.text('Saldo Final', colX[0] + pad, y);
-    doc.text(formatCurrency(saldoFinal), colX[4] + valueColWidth - pad, y, { align: 'right' });
-    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
-
-    const fname = `fluxo-categorias-analitico_${startStr}_a_${endStr}.pdf`;
-    doc.save(fname);
-    showToast('Fluxo por categorias (analítico) gerado em PDF', 'success');
+    doc.save(`fluxo_caixa_por_categorias_${startStr}_a_${endStr}.pdf`);
+    showToast('Fluxo de caixa por categorias (analítico) gerado em PDF', 'success');
     return;
   }
 
-  const receitasMap = new Map();
-  (recebimentos||[]).forEach(r => {
-    const ds = r[recDateField];
-    if (!ds || !inRange(ds)) return;
-    const val = Number(recDateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
-    if (val <= 0) return;
-    const name = nomeCategoria(r.categoria_id);
-    const tipo = tipoCategoria(r.categoria_id);
-    // No schema, categorias.tipo é 'entrada' para receitas
-    if (tipo && String(tipo).toLowerCase() !== 'entrada') return;
-    receitasMap.set(name, (receitasMap.get(name)||0) + val);
-  });
-
-  const despesasMap = new Map();
-  (pagamentos||[]).forEach(p => {
-    const ds = p[pagDateField];
-    if (!ds || !inRange(ds)) return;
-    const val = Number(pagDateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0));
-    if (val <= 0) return;
-    const name = nomeCategoria(p.categoria_id);
-    const tipo = tipoCategoria(p.categoria_id);
-    // No schema, categorias.tipo é 'saida' para despesas
-    if (tipo && String(tipo).toLowerCase() !== 'saida') return;
-    despesasMap.set(name, (despesasMap.get(name)||0) + val);
-  });
-
-  const totalReceitas = Array.from(receitasMap.values()).reduce((a,b)=>a+b,0);
-  const totalDespesas = Array.from(despesasMap.values()).reduce((a,b)=>a+b,0);
-  const saldoFinal = Number(saldoInicial||0) + totalReceitas - totalDespesas;
-
+  // Sintético (implementação)
   const fmtDMY = s => { if (!s) return '—'; const [y,m,d] = String(s).split('-'); return `${d}/${m}/${y}`; };
   doc.setTextColor(0,0,0); doc.setFontSize(16);
-  doc.text('FLUXO DE CAIXA POR CATEGORIA – SINTETICO', margin, margin + 6);
+  doc.text('FLUXO DE CAIXA POR CATEGORIA – SINTÉTICO', margin, margin + 6);
   doc.setFontSize(10);
   doc.text(`Periodo ${fmtDMY(startStr)} a ${fmtDMY(endStr)}`, margin, margin + 22);
   const campoLabel = (campoSel === 'data_vencimento') ? 'Por Vencimento' : 'Por Pagamento';
   doc.text(`Campo de data: ${campoLabel}`, margin, margin + 36);
-
   // Saldo inicial à direita
   doc.setFontSize(11); doc.setTextColor(0,0,0);
   const saldoIniStr = `Saldo inicial  ${formatCurrency(saldoInicial)}`;
   doc.text(saldoIniStr, pageWidth - margin - doc.getTextWidth(saldoIniStr), margin + 22);
 
-  // Tabela
-  const valueColWidth = 160;
+  // Layout em tabela simples
+  const valueColWidth = 140;
   const col1X = margin;
   const col2X = pageWidth - margin - valueColWidth;
-  const nameIndentX = col1X + 16; // identação para categorias
-  let y = margin + 48;
-  const rowHeight = 14;
-  const zebraWidth = pageWidth - margin * 2;
-  const ensurePage = (section) => { 
-    if (y + rowHeight > pageHeight - margin) { 
-      doc.addPage(); 
-      y = margin + 24; 
-      // Reimprime título da seção
-      if (section === 'receitas') { doc.setTextColor(...blue); doc.setFontSize(12); doc.text('Receitas', col1X, y); }
-      else if (section === 'despesas') { doc.setTextColor(...red); doc.setFontSize(12); doc.text('Despesas', col1X, y); }
-      y += 14; doc.setTextColor(0,0,0); doc.setFontSize(11);
-    }
+  let y = margin + 50;
+  const rowHeight = 18;
+  const tableWidth = pageWidth - margin * 2;
+  const contentWidth = tableWidth - valueColWidth;
+  const catW = Math.floor(contentWidth * 0.75);
+  const countW = contentWidth - catW;
+  const colX = [col1X, col1X + catW, col2X];
+  const pad = 6;
+
+  const drawSectionBand = (sectionColor, title) => {
+    const bandColor = (sectionColor === blue) ? [240,248,255] : [255,240,240];
+    doc.setFillColor(...bandColor);
+    doc.rect(col1X, y - 12, tableWidth, 22, 'F');
+    doc.setTextColor(...sectionColor); doc.setFontSize(12);
+    doc.setFont('helvetica','bold');
+    doc.text(title, col1X + pad, y);
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0); doc.setFontSize(10);
+    y += 22;
   };
-  const leaderPad = 6;
-  const drawLeader = (startX, endX, y) => {
-    if (endX - startX <= 4) return;
-    if (typeof doc.setLineDash === 'function') {
-      doc.setDrawColor(180,180,180);
-      doc.setLineDash([2,2], 0);
-      doc.line(startX, y - 3, endX, y - 3);
-      doc.setLineDash([]);
-    } else {
-      // Fallback: pequenos pontos
-      doc.setDrawColor(180,180,180);
-      const step = 4; for (let x = startX; x < endX; x += step) { if (typeof doc.circle === 'function') doc.circle(x, y - 3, 0.5, 'F'); }
+
+  const drawHeader = () => {
+    doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text('Categoria', colX[0] + pad, y);
+    doc.text('Itens', colX[1] + pad, y);
+    doc.text('Total', colX[2] + valueColWidth - pad, y, { align: 'right' });
+    doc.setFont('helvetica','normal'); doc.setFontSize(10);
+    y += 14;
+  };
+
+  const ensurePage = (sectionColor, titleIfNewPage = null) => {
+    if (y + rowHeight > pageHeight - margin) {
+      doc.addPage('a4','portrait');
+      y = margin + 24;
+      if (titleIfNewPage) {
+        drawSectionBand(sectionColor, titleIfNewPage);
+        drawHeader();
+      }
     }
   };
 
-  // Receitas
-  doc.setTextColor(...blue); doc.setFontSize(12);
-  doc.text('Receitas', col1X, y);
-  y += 14; doc.setTextColor(0,0,0); doc.setFontSize(11);
-  const receitasArr = Array.from(receitasMap.entries()).sort((a,b)=>b[1]-a[1]);
-  receitasArr.forEach(([name, val], idx) => {
-    // zebra line
-    if (idx % 2 === 1) { doc.setFillColor(245,245,245); doc.rect(margin, y - (rowHeight - 2), zebraWidth, rowHeight, 'F'); }
-    // texto
-    doc.text(name, nameIndentX, y);
-    const vStr = formatCurrency(val);
-    // leader pontilhado entre fim do nome e coluna de valor
-    const nameW = doc.getTextWidth(name);
-    const startLeaderX = nameIndentX + nameW + leaderPad;
-    const endLeaderX = col2X - leaderPad;
-    drawLeader(startLeaderX, endLeaderX, y);
-    // valor alinhado à direita
-    doc.text(vStr, col2X + valueColWidth, y, { align: 'right' });
-    y += rowHeight;
-    ensurePage('receitas');
+  // Agrupamento e filtros
+  const receitasPorCat = new Map();
+  const despesasPorCat = new Map();
+
+  (recebimentos || []).forEach(r => {
+    const ds = r[recDateField];
+    if (!ds || !inRange(ds)) return;
+    const okStatus = !filters || filters.rec_status === 'todos' || (String(r.status || '').toLowerCase() === String(filters.rec_status));
+    const okTipo   = !filters || filters.rec_tipo   === 'todos' || (String(r.tipo_recebimento || '').toLowerCase() === String(filters.rec_tipo));
+    if (!(okStatus && okTipo)) return;
+
+    const catId = r.categoria_id;
+    if (tipoCategoria(catId) !== 'entrada') return;
+    const valor = Number(recDateField === 'data_recebimento' ? (r.valor_recebido || 0) : (r.valor_esperado || 0));
+    if (valor <= 0) return;
+    const catName = nomeCategoria(catId);
+    const agg = receitasPorCat.get(catName) || { total: 0, count: 0 };
+    agg.total += valor; agg.count += 1;
+    receitasPorCat.set(catName, agg);
   });
-  // Total Receitas (negrito com rótulo)
+
+  (pagamentos || []).forEach(p => {
+    const ds = p[pagDateField];
+    if (!ds || !inRange(ds)) return;
+    const okStatus = !filters || filters.pag_status === 'todos' || (String(p.status || '').toLowerCase() === String(filters.pag_status));
+    const okTipo   = !filters || filters.pag_tipo   === 'todos' || (String(p.tipo_pagamento || '').toLowerCase() === String(filters.pag_tipo));
+    if (!(okStatus && okTipo)) return;
+
+    const catId = p.categoria_id;
+    if (tipoCategoria(catId) !== 'saida') return;
+    const valor = Number(pagDateField === 'data_pagamento' ? (p.valor_pago || 0) : (p.valor_esperado || 0));
+    if (valor <= 0) return;
+    const catName = nomeCategoria(catId);
+    const agg = despesasPorCat.get(catName) || { total: 0, count: 0 };
+    agg.total += valor; agg.count += 1;
+    despesasPorCat.set(catName, agg);
+  });
+
+  const receitasAgg = Array.from(receitasPorCat.entries()).map(([nome, v]) => ({ nome, ...v })).sort((a,b)=>b.total-a.total);
+  const despesasAgg = Array.from(despesasPorCat.entries()).map(([nome, v]) => ({ nome, ...v })).sort((a,b)=>b.total-a.total);
+  const totalReceitas = receitasAgg.reduce((s,x)=>s+x.total,0);
+  const totalDespesas = despesasAgg.reduce((s,x)=>s+x.total,0);
+
+  // Seção Receitas
+  drawSectionBand(blue, 'Receitas por Categoria');
+  drawHeader();
+  if (receitasAgg.length === 0) {
+    doc.setTextColor(120,120,120); doc.setFontSize(10);
+    doc.text('Sem receitas no período com filtros aplicados', colX[0] + pad, y);
+    y += rowHeight;
+    doc.setTextColor(0,0,0); doc.setFontSize(10);
+  } else {
+    receitasAgg.forEach(row => {
+      ensurePage(blue, 'Receitas por Categoria');
+      doc.text(row.nome || '—', colX[0] + pad, y);
+      doc.text(String(row.count), colX[1] + pad, y);
+      doc.text(formatCurrency(row.total), colX[2] + valueColWidth - pad, y, { align: 'right' });
+      y += rowHeight;
+    });
+  }
+
+  // Total Receitas
+  ensurePage(blue, 'Receitas por Categoria');
   doc.setFont('helvetica','bold'); doc.setTextColor(...blue);
-  doc.text('Total Receitas', col1X, y);
-  doc.text(formatCurrency(totalReceitas), col2X + valueColWidth, y, { align: 'right' });
-  y += 18; doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+  doc.setFillColor(240,248,255);
+  doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
+  doc.text('Total Receitas', colX[0] + pad, y);
+  doc.text(formatCurrency(totalReceitas), colX[2] + valueColWidth - pad, y, { align: 'right' });
+  doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+  y += rowHeight;
 
-  // Despesas
-  doc.setTextColor(...red); doc.setFontSize(12);
-  doc.text('Despesas', col1X, y);
-  y += 14; doc.setTextColor(0,0,0); doc.setFontSize(11);
-  const despesasArr = Array.from(despesasMap.entries()).sort((a,b)=>b[1]-a[1]);
-  despesasArr.forEach(([name, val], idx) => {
-    if (idx % 2 === 1) { doc.setFillColor(245,245,245); doc.rect(margin, y - (rowHeight - 2), zebraWidth, rowHeight, 'F'); }
-    doc.text(name, nameIndentX, y);
-    const vStr = formatCurrency(val);
-    const nameW = doc.getTextWidth(name);
-    const startLeaderX = nameIndentX + nameW + leaderPad;
-    const endLeaderX = col2X - leaderPad;
-    drawLeader(startLeaderX, endLeaderX, y);
-    doc.text(vStr, col2X + valueColWidth, y, { align: 'right' });
+  // Seção Despesas
+  drawSectionBand(red, 'Despesas por Categoria');
+  drawHeader();
+  if (despesasAgg.length === 0) {
+    doc.setTextColor(120,120,120); doc.setFontSize(10);
+    doc.text('Sem despesas no período com filtros aplicados', colX[0] + pad, y);
     y += rowHeight;
-    ensurePage('despesas');
-  });
-  // Total Despesas (negrito com rótulo)
+    doc.setTextColor(0,0,0); doc.setFontSize(10);
+  } else {
+    despesasAgg.forEach(row => {
+      ensurePage(red, 'Despesas por Categoria');
+      doc.text(row.nome || '—', colX[0] + pad, y);
+      doc.text(String(row.count), colX[1] + pad, y);
+      doc.text(formatCurrency(row.total), colX[2] + valueColWidth - pad, y, { align: 'right' });
+      y += rowHeight;
+    });
+  }
+
+  // Total Despesas
+  ensurePage(red, 'Despesas por Categoria');
   doc.setFont('helvetica','bold'); doc.setTextColor(...red);
-  doc.text('Total Despesas', col1X, y);
-  doc.text(formatCurrency(totalDespesas), col2X + valueColWidth, y, { align: 'right' });
-  y += 22; doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+  doc.setFillColor(255,240,240);
+  doc.rect(col1X, y - 12, tableWidth, rowHeight, 'F');
+  doc.text('Total Despesas', colX[0] + pad, y);
+  doc.text(formatCurrency(totalDespesas), colX[2] + valueColWidth - pad, y, { align: 'right' });
+  doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+  y += rowHeight;
 
   // Saldo final
-  const saldoColor = (saldoFinal >= 0) ? blue : red;
-  doc.setTextColor(...saldoColor); doc.setFontSize(12);
-  doc.setFont('helvetica','bold');
-  doc.text('Saldo Final', col1X, y);
-  doc.text(formatCurrency(saldoFinal), col2X + valueColWidth, y, { align: 'right' });
-  doc.setFont('helvetica','normal');
+  ensurePage(blue, null);
+  const saldoFinal = Number(saldoInicial || 0) + totalReceitas - totalDespesas;
+  doc.setFont('helvetica','bold'); doc.setTextColor(0,0,0);
+  doc.text('Saldo Final', colX[0] + pad, y);
+  doc.text(formatCurrency(saldoFinal), colX[2] + valueColWidth - pad, y, { align: 'right' });
 
-  const fname = `fluxo-categorias-sintetico_${startStr}_a_${endStr}.pdf`;
-  doc.save(fname);
-  showToast('Fluxo por categorias (sintético) gerado em PDF', 'success');
+  doc.save(`fluxo_caixa_por_categorias_sintetico_${startStr}_a_${endStr}.pdf`);
+  showToast('Fluxo de caixa por categorias (sintético) gerado em PDF', 'success');
+  return;
 }
 
-// Participação por Cliente – cálculo e renderização
+  // Participação por Cliente – cálculo e renderização
 function parseDateStr(s) { if (!s) return null; const [y,m,d] = String(s).split('-').map(Number); return new Date(y, (m||1)-1, (d||1)); }
 function daysBetween(aStr, bStr) { const a = parseDateStr(aStr); const b = parseDateStr(bStr); if (!a || !b) return 0; const ms = a.getTime() - b.getTime(); return Math.round(ms / 86400000); }
 function classifyPagamentoForClient(recs, todayStr) {
