@@ -1685,6 +1685,11 @@ async function gerarFluxoCaixaPorCategoriasPDF(startStr, endStr, saldoInicial, t
     doc.text('Total Despesas', colX[0] + pad, y);
     doc.text(formatCurrency(totalDespesas), colX[4] + valueColWidth - pad, y, { align: 'right' });
     doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    y += rowHeight;
+    const saldoFinal = Number(saldoInicial || 0) + totalReceitas - totalDespesas;
+    doc.setFont('helvetica','bold'); doc.setTextColor(0,0,0);
+    doc.text('Saldo Final', colX[0] + pad, y);
+    doc.text(formatCurrency(saldoFinal), colX[4] + valueColWidth - pad, y, { align: 'right' });
 
     doc.save(`fluxo_caixa_por_categorias_${startStr}_a_${endStr}.pdf`);
     showToast('Fluxo de caixa por categorias (analítico) gerado em PDF', 'success');
