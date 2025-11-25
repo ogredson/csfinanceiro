@@ -628,22 +628,22 @@ export async function renderRelatorios(app) {
     <div id="areasRel" class="areas">
       <div class="card area" data-area-id="calendarios">
         <div class="toolbar" style="justify-content:space-between;">
-          <h3>Calendários</h3>
-          <button class="btn btn-outline" data-toggle="calendarios">Mostrar/Ocultar</button>
+          <h3 style="color:#064e3b;">Calendários</h3>
+          <button class="btn btn-outline" data-toggle="calendarios" style="background:#fef9c3;border-color:#facc15;color:#92400e;">Mostrar/Ocultar</button>
         </div>
         <div class="area-body" id="areaBody_calendarios" style="display:block;">
           <div class="muted" style="margin-bottom:8px;">Gere calendários de pagamentos e recebimentos para o período selecionado.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-            <button id="btnCalPag" class="btn btn-outline">Gerar Calendário de Pagamentos</button>
-            <button id="btnCalRec" class="btn btn-outline">Gerar Calendário de Recebimentos</button>
+            <button id="btnCalPag" class="btn btn-outline" style="background:#fee2e2;border-color:#fca5a5;color:#b91c1c;">Gerar Calendário de Pagamentos</button>
+            <button id="btnCalRec" class="btn btn-outline" style="background:#e0f2fe;border-color:#93c5fd;color:#1d4ed8;">Gerar Calendário de Recebimentos</button>
           </div>
         </div>
       </div>
 
       <div class="card area" data-area-id="operacionais">
         <div class="toolbar" style="justify-content:space-between;">
-          <h3>Relatórios Operacionais</h3>
-          <button class="btn btn-outline" data-toggle="operacionais">Mostrar/Ocultar</button>
+          <h3 style="color:#064e3b;">Relatórios Operacionais</h3>
+          <button class="btn btn-outline" data-toggle="operacionais" style="background:#fef9c3;border-color:#facc15;color:#92400e;">Mostrar/Ocultar</button>
         </div>
         <div class="area-body" id="areaBody_operacionais" style="display:block;">
           <div class="muted" style="margin-bottom:8px;">Gere relações de Recebimentos e Pagamentos separadas dos calendários.</div>
@@ -685,18 +685,18 @@ export async function renderRelatorios(app) {
                 <option value="parcelado">Parcelado</option>
               </select>
             </label>
-            <button id="btnRelRec" class="btn btn-outline">Relação de Recebimentos</button>
-            <button id="btnRelRecCSV" class="btn btn-outline">Exportar CSV (Recebimentos)</button>
-            <button id="btnRelPag" class="btn btn-outline">Relação de Pagamentos</button>
-            <button id="btnRelPagCSV" class="btn btn-outline">Exportar CSV (Pagamentos)</button>
+            <button id="btnRelRec" class="btn btn-outline" style="background:#e0f2fe;border-color:#93c5fd;color:#1d4ed8;">Relação de Recebimentos</button>
+            <button id="btnRelRecCSV" class="btn btn-outline" style="background:#e0f2fe;border-color:#93c5fd;color:#1d4ed8;">Exportar CSV (Recebimentos)</button>
+            <button id="btnRelPag" class="btn btn-outline" style="background:#fee2e2;border-color:#fca5a5;color:#b91c1c;">Relação de Pagamentos</button>
+            <button id="btnRelPagCSV" class="btn btn-outline" style="background:#fee2e2;border-color:#fca5a5;color:#b91c1c;">Exportar CSV (Pagamentos)</button>
           </div>
         </div>
       </div>
 
       <div class="card area" data-area-id="fluxo">
         <div class="toolbar" style="justify-content:space-between;">
-          <h3>Fluxo de Caixa</h3>
-          <button class="btn btn-outline" data-toggle="fluxo">Mostrar/Ocultar</button>
+          <h3 style="color:#064e3b;">Fluxo de Caixa</h3>
+          <button class="btn btn-outline" data-toggle="fluxo" style="background:#fef9c3;border-color:#facc15;color:#92400e;">Mostrar/Ocultar</button>
         </div>
         <div class="area-body" id="areaBody_fluxo" style="display:block;">
           <div class="muted" style="margin-bottom:8px;">Gere o fluxo de caixa (sintético ou analítico). Os controles abaixo se aplicam a ambos os botões.</div>
@@ -749,16 +749,16 @@ export async function renderRelatorios(app) {
                 <option value="parcelado">Parcelado</option>
               </select>
             </label>
-            <button id="btnFluxo" class="btn btn-outline">Gerar Fluxo de Caixa</button>
-            <button id="btnFluxoCat" class="btn btn-outline">Gerar fluxo de caixa por categorias</button>
+            <button id="btnFluxo" class="btn btn-outline" style="background:#fef9c3;border-color:#facc15;color:#92400e;">Gerar Fluxo de Caixa</button>
+            <button id="btnFluxoCat" class="btn btn-outline" style="background:#fef9c3;border-color:#facc15;color:#92400e;">Gerar fluxo de caixa por categorias</button>
           </div>
         </div>
       </div>
 
       <div class="card area" data-area-id="gerenciais">
         <div class="toolbar" style="justify-content:space-between;">
-          <h3>Relatórios Gerenciais</h3>
-          <button class="btn btn-outline" data-toggle="gerenciais">Mostrar/Ocultar</button>
+          <h3 style="color:#064e3b;">Relatórios Gerenciais</h3>
+          <button class="btn btn-outline" data-toggle="gerenciais" style="background:#fef9c3;border-color:#facc15;color:#92400e;">Mostrar/Ocultar</button>
         </div>
         <div class="area-body" id="areaBody_gerenciais" style="display:block;">
           <div class="muted" style="margin-bottom:8px;">Evolução mensal das Receitas x Despesas no período selecionado.</div>
@@ -767,15 +767,15 @@ export async function renderRelatorios(app) {
               Saldo Inicial
               <input type="number" id="saldoInicialGer" step="0.01" value="0" style="width:140px;" />
             </label>
-            <button id="btnEvolucaoRecDesp" class="btn btn-outline">Evolução das Receitas x Despesas</button>
+            <button id="btnEvolucaoRecDesp" class="btn btn-outline" style="background:#fef9c3;border-color:#facc15;color:#92400e;">Evolução das Receitas x Despesas</button>
           </div>
         </div>
       </div>
 
       <div class="card area" data-area-id="participacao">
         <div class="toolbar" style="justify-content:space-between;">
-          <h3>Participação por Cliente</h3>
-          <button class="btn btn-outline" data-toggle="participacao">Mostrar/Ocultar</button>
+          <h3 style="color:#064e3b;">Participação por Cliente</h3>
+          <button class="btn btn-outline" data-toggle="participacao" style="background:#fef9c3;border-color:#facc15;color:#92400e;">Mostrar/Ocultar</button>
         </div>
         <div class="area-body" id="areaBody_participacao" style="display:none;">
           <div class="muted" style="margin-bottom:8px;">Mensalidade e % de participação no período; classes por pagamento e faturamento.</div>
@@ -786,8 +786,8 @@ export async function renderRelatorios(app) {
                 <option value="sim">Sim</option>
               </select>
             </label>
-            <button id="btnParticipacao" class="btn btn-outline">Gerar Participação por Cliente</button>
-            <button id="btnParticipacaoCSV" class="btn btn-outline">Exportar CSV</button>
+            <button id="btnParticipacao" class="btn btn-outline" style="background:#fef9c3;border-color:#facc15;color:#92400e;">Gerar Participação por Cliente</button>
+            <button id="btnParticipacaoCSV" class="btn btn-outline" style="background:#fef9c3;border-color:#facc15;color:#92400e;">Exportar CSV</button>
           </div>
           <div id="participacaoResult" class="card" style="margin-top:10px;"></div>
         </div>
@@ -795,8 +795,8 @@ export async function renderRelatorios(app) {
 
       <div class="card area" data-area-id="extras">
         <div class="toolbar" style="justify-content:space-between;">
-          <h3>Relatórios adicionais</h3>
-          <button class="btn btn-outline" data-toggle="extras">Mostrar/Ocultar</button>
+          <h3 style="color:#064e3b;">Relatórios adicionais</h3>
+          <button class="btn btn-outline" data-toggle="extras" style="background:#fef9c3;border-color:#facc15;color:#92400e;">Mostrar/Ocultar</button>
         </div>
         <div class="area-body" id="areaBody_extras" style="display:none;">
           <div class="empty-state">Em breve: novos relatórios e exportações.</div>
