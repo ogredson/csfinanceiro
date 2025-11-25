@@ -2053,6 +2053,7 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr, filters = { status:
   const campoSel = window._campoDataRelatorios || 'data_vencimento';
   const dateField = (campoSel === 'data_pagamento') ? 'data_recebimento' : 'data_vencimento';
   const meses = buildMonthArray(startStr, endStr);
+  const inRange = (ds) => !!ds && ds >= startStr && ds <= endStr;
 
   const baseCols = [
     { label: 'Cliente', width: 200 },
@@ -2083,7 +2084,7 @@ async function gerarRelacaoRecebimentosPDF(startStr, endStr, filters = { status:
     const y = mesObj.year, m = mesObj.month;
     const { colX, tableTop } = header(m, y);
     const mmStr = String(m).padStart(2,'0');
-    let rowsMes = (recebimentos||[]).filter(r => ((r[dateField]||'').startsWith(`${y}-${mmStr}`)));
+    let rowsMes = (recebimentos||[]).filter(r => { const ds = r[dateField] || ''; return inRange(ds) && ds.startsWith(`${y}-${mmStr}`); });
     if (filters.status && filters.status !== 'todos') { rowsMes = rowsMes.filter(r => (r.status || '').toLowerCase() === filters.status); }
     if (filters.tipo && filters.tipo !== 'todos') { rowsMes = rowsMes.filter(r => (r.tipo_recebimento || '').toLowerCase() === filters.tipo); }
     const sorted = [...rowsMes].sort((a,b)=>((a[dateField]||'').localeCompare(b[dateField]||'')));
@@ -2156,6 +2157,7 @@ async function gerarRelacaoPagamentosPDF(startStr, endStr, filters = { status: '
 
   const dateField = window._campoDataRelatorios || 'data_vencimento';
   const meses = buildMonthArray(startStr, endStr);
+  const inRange = (ds) => !!ds && ds >= startStr && ds <= endStr;
 
   const baseCols = [
     { label: 'Fornecedor', width: 200 },
@@ -2185,7 +2187,7 @@ async function gerarRelacaoPagamentosPDF(startStr, endStr, filters = { status: '
     const y = mesObj.year, m = mesObj.month;
     const { colX, tableTop } = header(m, y);
     const mmStr = String(m).padStart(2,'0');
-    let rowsMes = (pagamentos||[]).filter(p => ((p[dateField]||'').startsWith(`${y}-${mmStr}`)));
+    let rowsMes = (pagamentos||[]).filter(p => { const ds = p[dateField] || ''; return inRange(ds) && ds.startsWith(`${y}-${mmStr}`); });
     if (filters.status && filters.status !== 'todos') { rowsMes = rowsMes.filter(p => (p.status || '').toLowerCase() === filters.status); }
     if (filters.tipo && filters.tipo !== 'todos') { rowsMes = rowsMes.filter(p => (p.tipo_pagamento || '').toLowerCase() === filters.tipo); }
     const sorted = [...rowsMes].sort((a,b)=>((a[dateField]||'').localeCompare(b[dateField]||'')));
