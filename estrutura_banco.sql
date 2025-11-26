@@ -213,3 +213,44 @@ ADD CONSTRAINT clientes_tipo_unidade_check CHECK (
     )
   )
 );
+
+create table public.anexos_clientes (
+  id uuid not null default extensions.uuid_generate_v4 (),
+  id_cliente uuid not null,
+  descricao text not null,
+  url_anexo text not null,
+  nome_arquivo text null,
+  tipo_arquivo text null,
+  data_anexo timestamp with time zone null default now(),
+  created_at timestamp with time zone null default now(),
+  created_by uuid null,
+  categoria text null,
+  ativo boolean null default true,
+  constraint anexos_clientes_pkey primary key (id),
+  constraint anexos_clientes_id_cliente_fkey foreign KEY (id_cliente) references clientes (id) on delete CASCADE,
+  constraint anexos_clientes_categoria_check check (
+    (
+      (
+        categoria = any (
+          array[
+            'contrato'::text,
+            'proposta'::text,
+            'banco_de_dados'::text,
+            'certificado_digital'::text,
+            'outro'::text
+          ]
+        )
+      )
+      or (categoria is null)
+    )
+  ),
+  constraint anexos_clientes_url_check check ((url_anexo ~ '^https?://.*'::text))
+) TABLESPACE pg_default;
+
+create index IF not exists idx_anexos_clientes_id_cliente on public.anexos_clientes using btree (id_cliente) TABLESPACE pg_default;
+
+create index IF not exists idx_anexos_clientes_data_anexo on public.anexos_clientes using btree (data_anexo) TABLESPACE pg_default;
+
+create index IF not exists idx_anexos_clientes_categoria on public.anexos_clientes using btree (categoria) TABLESPACE pg_default;
+
+create index IF not exists idx_anexos_clientes_ativo on public.anexos_clientes using btree (ativo) TABLESPACE pg_default;

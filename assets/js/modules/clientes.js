@@ -96,6 +96,31 @@ function clienteForm(initial = {}) {
           <div class="field full"><label>Observação</label><textarea id="observacao" rows="3">${initial.observacao||''}</textarea></div>
         </div>
       </div>
+
+      <div class="card" style="margin-top:12px;">
+        <h3>Anexos</h3>
+        <div id="anexosList" style="margin-bottom:8px;"></div>
+        ${initial.id ? '' : '<div class="muted" style="margin:6px 0;">Salve o cliente para lançar anexos.</div>'}
+        <div class="form-row">
+          <div class="field"><label>Descrição</label><input id="anxDescricao" /></div>
+          <div class="field"><label>URL</label><input id="anxUrl" placeholder="https://" /></div>
+          <div class="field"><label>Nome do Arquivo</label><input id="anxNome" /></div>
+          <div class="field"><label>Tipo do Arquivo</label><input id="anxTipo" placeholder="Ex.: pdf" /></div>
+          <div class="field"><label>Categoria</label>
+            <select id="anxCategoria">
+              <option value="">—</option>
+              <option value="contrato">Contrato</option>
+              <option value="proposta">Proposta</option>
+              <option value="banco_de_dados">Banco de dados</option>
+              <option value="certificado_digital">Certificado digital</option>
+              <option value="outro">Outro</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button id="addAnexo" class="btn btn-primary" ${initial.id ? '' : 'disabled'}>Adicionar Anexo</button>
+        </div>
+      </div>
     </form>`;
 }
 
@@ -153,6 +178,63 @@ async function openEdit(row) {
       }
     }}
   ] });
+
+  if (row && row.id) {
+    const listEl = modal.querySelector('#anexosList');
+    async function loadAnexos() {
+      const { data, error } = await db.select('anexos_clientes', { eq: { id_cliente: row.id }, orderBy: { column: 'data_anexo', ascending: false } });
+      if (error) { showToast(error.message||'Erro ao carregar anexos','error'); return; }
+      const rows = data || [];
+      listEl.innerHTML = rows.map(a => `
+        <div style="display:grid;grid-template-columns:2fr 1fr 0.8fr 0.8fr 0.8fr;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #e5e7eb;">
+          <div>${a.descricao} <span class="muted">${a.categoria||'—'}</span></div>
+          <div><a href="${a.url_anexo}" target="_blank">${a.nome_arquivo||'abrir'}</a></div>
+          <div>${(a.data_anexo||'').slice(0,10)}</div>
+          <div><span class="status-pill ${a.ativo?'status-recebido':'status-cancelado'}">${a.ativo?'Ativo':'Inativo'}</span></div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-outline btn-sm" data-anx-toggle="${a.id}">${a.ativo?'Desativar':'Ativar'}</button>
+            <button class="btn btn-danger btn-sm" data-anx-del="${a.id}">Excluir</button>
+          </div>
+        </div>
+      `).join('') || '<div class="empty-state">Nenhum anexo</div>';
+      listEl.querySelectorAll('[data-anx-del]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-anx-del');
+          const { error } = await db.remove('anexos_clientes', id);
+          if (error) showToast(error.message||'Erro ao excluir anexo','error'); else { showToast('Anexo excluído','success'); loadAnexos(); }
+        });
+      });
+      listEl.querySelectorAll('[data-anx-toggle]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.getAttribute('data-anx-toggle');
+          const cur = rows.find(x => x.id === id);
+          const { error } = await db.update('anexos_clientes', id, { ativo: !(cur&&cur.ativo) });
+          if (error) showToast(error.message||'Erro ao atualizar anexo','error'); else { showToast('Anexo atualizado','success'); loadAnexos(); }
+        });
+      });
+    }
+    await loadAnexos();
+
+    const addBtn = modal.querySelector('#addAnexo');
+    if (addBtn) addBtn.addEventListener('click', async () => {
+      const descricao = modal.querySelector('#anxDescricao')?.value?.trim();
+      const url = modal.querySelector('#anxUrl')?.value?.trim();
+      const nome = modal.querySelector('#anxNome')?.value?.trim() || null;
+      const tipo = modal.querySelector('#anxTipo')?.value?.trim() || null;
+      const categoria = modal.querySelector('#anxCategoria')?.value || null;
+      if (!descricao || !url) { showToast('Informe descrição e URL','error'); return; }
+      const { error } = await db.insert('anexos_clientes', { id_cliente: row.id, descricao, url_anexo: url, nome_arquivo: nome, tipo_arquivo: tipo, categoria, ativo: true });
+      if (error) showToast(error.message||'Erro ao adicionar anexo','error'); else {
+        showToast('Anexo adicionado','success');
+        modal.querySelector('#anxDescricao').value = '';
+        modal.querySelector('#anxUrl').value = '';
+        modal.querySelector('#anxNome').value = '';
+        modal.querySelector('#anxTipo').value = '';
+        modal.querySelector('#anxCategoria').value = '';
+        await loadAnexos();
+      }
+    });
+  }
 }
 
 async function historicoRecebimentos(clienteId) {
