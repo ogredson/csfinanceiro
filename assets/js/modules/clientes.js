@@ -1,4 +1,4 @@
-import { db } from '../supabaseClient.js';
+import { db, getSession } from '../supabaseClient.js';
 import { showToast, formatCurrency, sanitizeText } from '../utils.js';
 import { createModal } from '../components/Modal.js';
 import { renderTable } from '../components/Table.js';
@@ -223,7 +223,10 @@ async function openEdit(row) {
       const tipo = modal.querySelector('#anxTipo')?.value?.trim() || null;
       const categoria = modal.querySelector('#anxCategoria')?.value || null;
       if (!descricao || !url) { showToast('Informe descrição e URL','error'); return; }
-      const { error } = await db.insert('anexos_clientes', { id_cliente: row.id, descricao, url_anexo: url, nome_arquivo: nome, tipo_arquivo: tipo, categoria, ativo: true });
+      if (!/^https?:\/\/.+/i.test(url)) { showToast('URL deve iniciar com http:// ou https://','error'); return; }
+      const { data: sess } = await getSession();
+      const created_by = sess?.session?.user?.id || null;
+      const { error } = await db.insert('anexos_clientes', { id_cliente: row.id, descricao, url_anexo: url, nome_arquivo: nome, tipo_arquivo: tipo, categoria: (categoria||null), ativo: true, created_by });
       if (error) showToast(error.message||'Erro ao adicionar anexo','error'); else {
         showToast('Anexo adicionado','success');
         modal.querySelector('#anxDescricao').value = '';
@@ -248,6 +251,28 @@ async function historicoRecebimentos(clienteId) {
       </div>`).join('') || '<div class="empty-state">Sem histórico</div>'}
     </div>
   `, actions: [ { label: 'Fechar', className: 'btn btn-outline', onClick: ({ close }) => close() } ] });
+}
+
+async function openAnexosCliente(row) {
+  const { modal, close } = createModal({ title: 'Anexos do Cliente', content: `<div class="card"><div id="anxGrid"></div></div>`, actions: [ { label: 'Fechar', className: 'btn btn-outline', onClick: ({ close }) => close() } ] });
+  const { data, error } = await db.select('anexos_clientes', { eq: { id_cliente: row.id }, orderBy: { column: 'data_anexo', ascending: false } });
+  if (error) { showToast(error.message||'Erro ao carregar anexos', 'error'); return; }
+  const rows = data || [];
+  const cont = modal.querySelector('#anxGrid');
+  renderTable(cont, {
+    columns: [
+      { key: 'descricao', label: 'Descrição' },
+      { key: 'categoria', label: 'Categoria' },
+      { key: 'nome_arquivo', label: 'Arquivo' },
+      { key: 'tipo_arquivo', label: 'Tipo' },
+      { key: 'data_anexo', label: 'Data', render: v => (v||'').slice(0,10) },
+      { key: 'ativo', label: 'Status', render: v => `<span class="status-pill ${v?'status-recebido':'status-cancelado'}">${v?'Ativo':'Inativo'}</span>` },
+    ],
+    rows,
+    actions: [
+      { label: 'Abrir', className: 'btn btn-outline', onClick: r => { const url = r.url_anexo; if (url) window.open(url, '_blank'); else showToast('URL inválida','warning'); } }
+    ],
+  });
 }
 
 export async function renderClientes(app) {
@@ -307,6 +332,7 @@ export async function renderClientes(app) {
       perPage,
       actions: [
         { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r) },
+        { label: 'Anexos', className: 'btn btn-outline', onClick: r => openAnexosCliente(r) },
         { label: 'Excluir', className: 'btn btn-danger', onClick: async r => {
           const nome = sanitizeText(r.nome || '');
           const { modal, close } = createModal({
