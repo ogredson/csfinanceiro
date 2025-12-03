@@ -803,33 +803,23 @@ export async function renderRecebimentos(app) {
     const fDeEl = document.getElementById('fDe');
     const fAteEl = document.getElementById('fAte');
     const fDateFieldEl = document.getElementById('fDateField');
+    const fStatusEl = document.getElementById('fStatus');
+    const fTipoEl = document.getElementById('fTipo');
+    const fOnlyEl = document.getElementById('fOnlyOverdue');
     if (saved && saved.de && saved.ate) {
       if (fDeEl) fDeEl.value = saved.de;
       if (fAteEl) fAteEl.value = saved.ate;
       if (fDateFieldEl) fDateFieldEl.value = saved.date_field || 'data_vencimento';
-      filters.status = saved.status;
-      filters.tipo_recebimento = saved.tipo_recebimento;
+      if (fStatusEl) fStatusEl.value = saved.status || '';
+      if (fTipoEl) fTipoEl.value = saved.tipo_recebimento || '';
+      if (fOnlyEl) fOnlyEl.checked = !!saved.onlyOverdue;
+      filters.status = saved.status || undefined;
+      filters.tipo_recebimento = saved.tipo_recebimento || undefined;
       filters.de = saved.de;
       filters.ate = saved.ate;
       filters.date_field = saved.date_field || 'data_vencimento';
       filters.onlyOverdue = saved.onlyOverdue ? true : undefined;
-      const setVal = (id,val)=>{ const el=document.getElementById(id); if (el) el.value = (val ?? ''); };
-      setVal('fCliNome', saved.qCli);
-      setVal('fDescricao', saved.qDesc);
-      setVal('fCategoriaNome', saved.qCat);
-      setVal('fCliGrupo', saved.qGrupo);
-      setVal('fCliRegime', saved.fRegime);
-      setVal('fCliTipoEmpresa', saved.fTipoEmp);
-      setVal('sortField', saved.sortField || 'data_vencimento');
-      setVal('sortDir', saved.sortDir || 'asc');
-      qCli = saved.qCli || '';
-      qDesc = saved.qDesc || '';
-      qCat = saved.qCat || '';
-      qGrupo = saved.qGrupo || '';
-      fRegime = saved.fRegime || '';
-      fTipoEmp = saved.fTipoEmp || '';
-      sortField = saved.sortField || 'data_vencimento';
-      sortDir = saved.sortDir || 'asc';
+      // somente status, tipo e período são restaurados; buscas e ordenação não são persistidas
     } else {
       const now = new Date();
       const firstDay = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
@@ -1289,14 +1279,14 @@ export async function renderRecebimentos(app) {
       });
     });
   }
-  document.getElementById('fCliNome').addEventListener('input', (e) => { qCli = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qCli })); page = 1; debouncedLoad(); });
-  document.getElementById('fDescricao').addEventListener('input', (e) => { qDesc = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qDesc })); page = 1; debouncedLoad(); });
-  document.getElementById('fCategoriaNome').addEventListener('input', (e) => { qCat = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qCat })); page = 1; debouncedLoad(); });
-  document.getElementById('fCliGrupo').addEventListener('input', (e) => { qGrupo = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qGrupo })); page = 1; debouncedLoad(); });
-  document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), sortField })); page = 1; load(); });
-  document.getElementById('sortDir').addEventListener('change', (e) => { sortDir = e.target.value; localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), sortDir })); page = 1; load(); });
-  document.getElementById('fCliRegime').addEventListener('change', (e) => { fRegime = (e.target.value||'').trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), fRegime })); page = 1; load(); });
-  document.getElementById('fCliTipoEmpresa').addEventListener('change', (e) => { fTipoEmp = (e.target.value||'').trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), fTipoEmp })); page = 1; load(); });
+  document.getElementById('fCliNome').addEventListener('input', (e) => { qCli = e.target.value.trim(); page = 1; debouncedLoad(); });
+  document.getElementById('fDescricao').addEventListener('input', (e) => { qDesc = e.target.value.trim(); page = 1; debouncedLoad(); });
+  document.getElementById('fCategoriaNome').addEventListener('input', (e) => { qCat = e.target.value.trim(); page = 1; debouncedLoad(); });
+  document.getElementById('fCliGrupo').addEventListener('input', (e) => { qGrupo = e.target.value.trim(); page = 1; debouncedLoad(); });
+  document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; page = 1; load(); });
+  document.getElementById('sortDir').addEventListener('change', (e) => { sortDir = e.target.value; page = 1; load(); });
+  document.getElementById('fCliRegime').addEventListener('change', (e) => { fRegime = (e.target.value||'').trim(); page = 1; load(); });
+  document.getElementById('fCliTipoEmpresa').addEventListener('change', (e) => { fTipoEmp = (e.target.value||'').trim(); page = 1; load(); });
   document.getElementById('newRec').addEventListener('click', openCreate);
   document.getElementById('genRec').addEventListener('click', openGenerateRecebimentos);
   document.getElementById('relatorio').addEventListener('click', () => {

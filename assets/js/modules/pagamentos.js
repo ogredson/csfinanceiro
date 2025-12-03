@@ -766,29 +766,19 @@ export async function renderPagamentos(app) {
     const fDeEl = document.getElementById('fDe');
     const fAteEl = document.getElementById('fAte');
     const fDateFieldEl = document.getElementById('fDateField');
-    if (saved && saved.de && saved.ate) {
-      if (fDeEl) fDeEl.value = saved.de;
-      if (fAteEl) fAteEl.value = saved.ate;
-      if (fDateFieldEl) fDateFieldEl.value = saved.date_field || 'data_vencimento';
-      filters.status = saved.status;
-      filters.tipo_pagamento = saved.tipo_pagamento;
-      filters.de = saved.de;
-      filters.ate = saved.ate;
-      filters.date_field = saved.date_field || 'data_vencimento';
+    const fStatusEl = document.getElementById('fStatus');
+    const fTipoEl = document.getElementById('fTipo');
+    const fOnlyEl = document.getElementById('fOnlyOverdue');
+    if (saved) {
+      if (saved.de && fDeEl) { fDeEl.value = saved.de; filters.de = saved.de; }
+      if (saved.ate && fAteEl) { fAteEl.value = saved.ate; filters.ate = saved.ate; }
+      if (fDateFieldEl) { fDateFieldEl.value = saved.date_field || 'data_vencimento'; filters.date_field = saved.date_field || 'data_vencimento'; }
+      if (fStatusEl) fStatusEl.value = saved.status || '';
+      if (fTipoEl) fTipoEl.value = saved.tipo_pagamento || '';
+      if (fOnlyEl) fOnlyEl.checked = !!saved.onlyOverdue;
+      filters.status = saved.status || undefined;
+      filters.tipo_pagamento = saved.tipo_pagamento || undefined;
       filters.onlyOverdue = saved.onlyOverdue ? true : undefined;
-      const setVal = (id,val)=>{ const el=document.getElementById(id); if (el) el.value = (val ?? ''); };
-      setVal('fForNome', saved.qFor);
-      setVal('fDescricao', saved.qDesc);
-      setVal('fCategoriaNome', saved.qCat);
-      setVal('fFormaNome', saved.qForma);
-      setVal('sortField', saved.sortField || 'data_vencimento');
-      setVal('sortDir', saved.sortDir || 'asc');
-      qFor = saved.qFor || '';
-      qDesc = saved.qDesc || '';
-      qCat = saved.qCat || '';
-      qForma = saved.qForma || '';
-      sortField = saved.sortField || 'data_vencimento';
-      sortDir = saved.sortDir || 'asc';
     } else {
       const now = new Date();
       const firstDay = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
@@ -1131,7 +1121,6 @@ export async function renderPagamentos(app) {
       de: filters.de,
       ate: filters.ate,
       date_field: filters.date_field,
-      onlyOverdue: !!document.getElementById('fOnlyOverdue').checked,
     }));
     page = 1;
     load();
@@ -1231,12 +1220,12 @@ export async function renderPagamentos(app) {
       });
     });
   }
-    document.getElementById('fForNome').addEventListener('input', (e) => { qFor = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qFor })); page = 1; debouncedLoad(); });
-  document.getElementById('fDescricao').addEventListener('input', (e) => { qDesc = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qDesc })); page = 1; debouncedLoad(); });
-  document.getElementById('fCategoriaNome').addEventListener('input', (e) => { qCat = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qCat })); page = 1; debouncedLoad(); });
-  document.getElementById('fFormaNome').addEventListener('input', (e) => { qForma = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qForma })); page = 1; debouncedLoad(); });
-  document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), sortField })); page = 1; load(); });
-  document.getElementById('sortDir').addEventListener('change', (e) => { sortDir = e.target.value; localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), sortDir })); page = 1; load(); });
+    document.getElementById('fForNome').addEventListener('input', (e) => { qFor = e.target.value.trim(); page = 1; debouncedLoad(); });
+  document.getElementById('fDescricao').addEventListener('input', (e) => { qDesc = e.target.value.trim(); page = 1; debouncedLoad(); });
+  document.getElementById('fCategoriaNome').addEventListener('input', (e) => { qCat = e.target.value.trim(); page = 1; debouncedLoad(); });
+  document.getElementById('fFormaNome').addEventListener('input', (e) => { qForma = e.target.value.trim(); page = 1; debouncedLoad(); });
+  document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; page = 1; load(); });
+  document.getElementById('sortDir').addEventListener('change', (e) => { sortDir = e.target.value; page = 1; load(); });
   document.getElementById('newPay').addEventListener('click', openCreate);
   document.getElementById('gerarPagamentos').addEventListener('click', openGeneratePagamentos);
   document.getElementById('relatorioDespesas').addEventListener('click', () => {
