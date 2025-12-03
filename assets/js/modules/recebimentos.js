@@ -797,24 +797,36 @@ export async function renderRecebimentos(app) {
   `;
 
   const filters = {};
-  // Inicializa filtros de data com o período do mês atual
+  const LS_KEY = 'REC_FILTERS';
   try {
-    const now = new Date();
-    const firstDay = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-    const lastDayDate = new Date(now.getFullYear(), now.getMonth()+1, 0);
-    const lastDay = `${lastDayDate.getFullYear()}-${String(lastDayDate.getMonth()+1).padStart(2,'0')}-${String(lastDayDate.getDate()).padStart(2,'0')}`;
+    const saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
     const fDeEl = document.getElementById('fDe');
     const fAteEl = document.getElementById('fAte');
     const fDateFieldEl = document.getElementById('fDateField');
-    if (fDeEl) fDeEl.value = firstDay;
-    if (fAteEl) fAteEl.value = lastDay;
-    if (fDateFieldEl) fDateFieldEl.value = 'data_vencimento';
-    filters.de = firstDay;
-    filters.ate = lastDay;
-    filters.date_field = 'data_vencimento';
+    if (saved && saved.de && saved.ate) {
+      if (fDeEl) fDeEl.value = saved.de;
+      if (fAteEl) fAteEl.value = saved.ate;
+      if (fDateFieldEl) fDateFieldEl.value = saved.date_field || 'data_vencimento';
+      filters.status = saved.status;
+      filters.tipo_recebimento = saved.tipo_recebimento;
+      filters.de = saved.de;
+      filters.ate = saved.ate;
+      filters.date_field = saved.date_field || 'data_vencimento';
+      filters.onlyOverdue = saved.onlyOverdue ? true : undefined;
+    } else {
+      const now = new Date();
+      const firstDay = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+      const lastDayDate = new Date(now.getFullYear(), now.getMonth()+1, 0);
+      const lastDay = `${lastDayDate.getFullYear()}-${String(lastDayDate.getMonth()+1).padStart(2,'0')}-${String(lastDayDate.getDate()).padStart(2,'0')}`;
+      if (fDeEl) fDeEl.value = firstDay;
+      if (fAteEl) fAteEl.value = lastDay;
+      if (fDateFieldEl) fDateFieldEl.value = 'data_vencimento';
+      filters.de = firstDay;
+      filters.ate = lastDay;
+      filters.date_field = 'data_vencimento';
+    }
   } catch (e) {
-    // ignora falha de inicialização silenciosamente
-    console.warn('Falha ao definir período padrão (Recebimentos):', e);
+    console.warn('Falha ao definir período (Recebimentos):', e);
   }
   let currentRows = [];
   let qCli = '';
@@ -1149,6 +1161,14 @@ export async function renderRecebimentos(app) {
     filters.ate = document.getElementById('fAte').value || undefined;
     filters.date_field = document.getElementById('fDateField').value || 'data_vencimento';
     filters.onlyOverdue = document.getElementById('fOnlyOverdue').checked || undefined;
+    localStorage.setItem('REC_FILTERS', JSON.stringify({
+      status: filters.status,
+      tipo_recebimento: filters.tipo_recebimento,
+      de: filters.de,
+      ate: filters.ate,
+      date_field: filters.date_field,
+      onlyOverdue: !!document.getElementById('fOnlyOverdue').checked,
+    }));
     page = 1;
     load();
   });
@@ -1193,6 +1213,7 @@ export async function renderRecebimentos(app) {
     filters.ate = lastDay;
     filters.date_field = 'data_vencimento';
     filters.onlyOverdue = undefined;
+    localStorage.removeItem('REC_FILTERS');
     page = 1;
     load();
   });
