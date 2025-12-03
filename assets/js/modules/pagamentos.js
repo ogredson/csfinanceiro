@@ -776,6 +776,19 @@ export async function renderPagamentos(app) {
       filters.ate = saved.ate;
       filters.date_field = saved.date_field || 'data_vencimento';
       filters.onlyOverdue = saved.onlyOverdue ? true : undefined;
+      const setVal = (id,val)=>{ const el=document.getElementById(id); if (el) el.value = (val ?? ''); };
+      setVal('fForNome', saved.qFor);
+      setVal('fDescricao', saved.qDesc);
+      setVal('fCategoriaNome', saved.qCat);
+      setVal('fFormaNome', saved.qForma);
+      setVal('sortField', saved.sortField || 'data_vencimento');
+      setVal('sortDir', saved.sortDir || 'asc');
+      qFor = saved.qFor || '';
+      qDesc = saved.qDesc || '';
+      qCat = saved.qCat || '';
+      qForma = saved.qForma || '';
+      sortField = saved.sortField || 'data_vencimento';
+      sortDir = saved.sortDir || 'asc';
     } else {
       const now = new Date();
       const firstDay = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
@@ -1218,12 +1231,12 @@ export async function renderPagamentos(app) {
       });
     });
   }
-    document.getElementById('fForNome').addEventListener('input', (e) => { qFor = e.target.value.trim(); page = 1; debouncedLoad(); });
-  document.getElementById('fDescricao').addEventListener('input', (e) => { qDesc = e.target.value.trim(); page = 1; debouncedLoad(); });
-  document.getElementById('fCategoriaNome').addEventListener('input', (e) => { qCat = e.target.value.trim(); page = 1; debouncedLoad(); });
-  document.getElementById('fFormaNome').addEventListener('input', (e) => { qForma = e.target.value.trim(); page = 1; debouncedLoad(); });
-  document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; page = 1; load(); });
-  document.getElementById('sortDir').addEventListener('change', (e) => { sortDir = e.target.value; page = 1; load(); });
+    document.getElementById('fForNome').addEventListener('input', (e) => { qFor = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qFor })); page = 1; debouncedLoad(); });
+  document.getElementById('fDescricao').addEventListener('input', (e) => { qDesc = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qDesc })); page = 1; debouncedLoad(); });
+  document.getElementById('fCategoriaNome').addEventListener('input', (e) => { qCat = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qCat })); page = 1; debouncedLoad(); });
+  document.getElementById('fFormaNome').addEventListener('input', (e) => { qForma = e.target.value.trim(); localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), qForma })); page = 1; debouncedLoad(); });
+  document.getElementById('sortField').addEventListener('change', (e) => { sortField = e.target.value; localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), sortField })); page = 1; load(); });
+  document.getElementById('sortDir').addEventListener('change', (e) => { sortDir = e.target.value; localStorage.setItem(LS_KEY, JSON.stringify({ ...(JSON.parse(localStorage.getItem(LS_KEY)||'{}')), sortDir })); page = 1; load(); });
   document.getElementById('newPay').addEventListener('click', openCreate);
   document.getElementById('gerarPagamentos').addEventListener('click', openGeneratePagamentos);
   document.getElementById('relatorioDespesas').addEventListener('click', () => {
