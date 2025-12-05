@@ -358,7 +358,7 @@ export async function renderClientes(app) {
     pager.style.justifyContent = 'space-between';
     pager.style.marginTop = '8px';
     pager.innerHTML = `
-      <div></div>
+      <div>Total: ${filtered.length} de ${allRows.length} registros</div>
       <div>
         <button id="prevCli" class="btn btn-outline">Anterior</button>
         <span style="margin:0 8px;">Página ${page} de ${totalPages}</span>
