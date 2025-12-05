@@ -148,7 +148,6 @@ export async function renderFornecedores(app) {
     pager.style.justifyContent = 'space-between';
     pager.style.marginTop = '8px';
     pager.innerHTML = `
-      <div>Total: ${filtered.length}pager.innerHTML = `
       <div>Total: ${filtered.length} de ${allRows.length} registros</div>
       <div>
         <button id="prevForn" class="btn btn-outline">Anterior</button>
