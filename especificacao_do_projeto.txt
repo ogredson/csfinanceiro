@@ -1,3 +1,9 @@
+No diretório do projeto ( c:\_working\Projetos\CSFinanceiro ):
+- npx --yes http-server . -p 5173 -c-1
+
+- URL: http://127.0.0.1:5173/ (ou http://localhost:5173/ )
+- Rota de login: http://127.0.0.1:5173/#/login
+
 Prompt para Trae.ai - Sistema de Controle Financeiro para Software House
 🎯 Contexto do Projeto
 Estou desenvolvendo um sistema web responsivo de controle financeiro para minha software house que trabalha com aluguel de software (SaaS). 
@@ -150,3 +156,9 @@ Documentação básica de uso
 
 Nota para Trae.ai: Por favor, gere o código completo do frontend seguindo esta especificação. Comece pela estrutura de arquivos, depois autenticação, dashboard e módulos principais. 
 Use JavaScript moderno com async/await e garanta que todas as operações com Supabase incluam tratamento de erros adequado.
+
+Vamos especificar melhor a "classe de pagamento", escreva ao lado das letras o seguinte:
+A (Bons Pagadores) 
+B (Pequeno Atraso) 
+C (Atraso Moderado) 
+D (Inadimplentes Crônicos) 

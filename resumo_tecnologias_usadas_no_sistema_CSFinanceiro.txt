@@ -1,0 +1,35 @@
+         
+Com base na análise dos arquivos do projeto, aqui estão as tecnologias utilizadas:
+
+### 1. Front-end (Interface)
+O projeto utiliza uma abordagem **"Vanilla" (Pura)**, sem frameworks complexos de build (como React, Vue ou Angular), rodando diretamente no navegador com **ES Modules**.
+
+*   **HTML5 & CSS3**: Estrutura semântica e estilização personalizada (`assets/css/styles.css`). O design parece ser responsivo e utiliza variáveis CSS para temas (claro/escuro).
+*   **JavaScript (ES6+)**: O código é modular (`import`/`export`), organizado em módulos funcionais (`assets/js/modules/`) e componentes reutilizáveis (`assets/js/components/`).
+*   **Single Page Application (SPA)**: A navegação é feita via **Hash Routing** (`#/dashboard`, `#/clientes`), carregando o conteúdo dinamicamente na `div#app` sem recarregar a página.
+
+### 2. Back-end & Banco de Dados (BaaS)
+O sistema utiliza o **Supabase** como plataforma de back-end completa:
+
+*   **Banco de Dados**: PostgreSQL (hospedado no Supabase).
+*   **Autenticação**: Supabase Auth (gerenciamento de sessões e usuários).
+*   **API**: O cliente JavaScript do Supabase (`@supabase/supabase-js`) é usado para realizar operações de CRUD (`select`, `insert`, `update`, `remove`) diretamente do front-end.
+
+### 3. Bibliotecas Externas
+Algumas bibliotecas específicas são carregadas via CDN (Content Delivery Network) no `index.html`:
+
+*   **Chart.js (v4.4.1)**: Para geração dos gráficos de fluxo de caixa e KPIs (`assets/js/modules/graficos.js`).
+*   **jsPDF (v2.5.1)**: Para geração de relatórios em PDF diretamente no navegador (`assets/js/modules/relatorios.js`).
+*   **Google Fonts (Inter)**: Tipografia principal do sistema.
+
+### Resumo da Arquitetura
+*   **Tipo**: Aplicação Web Estática (Static Web App).
+*   **Hospedagem**: Pode ser hospedada em qualquer servidor estático (Vercel, Netlify, GitHub Pages), pois não requer um servidor Node.js rodando o front-end em produção (o `server.js` na raiz provavelmente serve apenas para testes locais).
+*   **Padrão de Código**: Modularização nativa do navegador (`<script type="module">`).
+
+toolName: view_folder
+c:\_working\Projetos\csfinanceiro
+toolName: view_files
+filePath: c:\_working\Projetos\csfinanceiro\package.json
+toolName: view_files
+filePath: c:\_working\Projetos\csfinanceiro\index.html
