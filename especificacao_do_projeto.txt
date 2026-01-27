@@ -4,6 +4,8 @@ No diretório do projeto ( c:\_working\Projetos\CSFinanceiro ):
 - URL: http://127.0.0.1:5173/ (ou http://localhost:5173/ )
 - Rota de login: http://127.0.0.1:5173/#/login
 
+https://realfavicongenerator.net/
+
 Prompt para Trae.ai - Sistema de Controle Financeiro para Software House
 🎯 Contexto do Projeto
 Estou desenvolvendo um sistema web responsivo de controle financeiro para minha software house que trabalha com aluguel de software (SaaS). 
