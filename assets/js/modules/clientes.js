@@ -56,6 +56,7 @@ function clienteForm(initial = {}) {
               <option value="outro" ${initial.regime_tributario==='outro'?'selected':''}>Outro</option>
             </select>
           </div>
+          <div class="field"><label>Início do Contrato</label><input type="date" id="data_inicio_contrato" value="${initial.data_inicio_contrato||''}"/></div>
         </div>
       </div>
 
@@ -138,6 +139,7 @@ function getCliFormValues(modal) {
     grupo_cliente: getVal('grupo_cliente') || null,
     tipo_empresa: getVal('tipo_empresa') || null,
     regime_tributario: getVal('regime_tributario') || null,
+    data_inicio_contrato: getVal('data_inicio_contrato') || null,
     logradouro: getVal('logradouro') || null,
     numero: getVal('numero') || null,
     complemento: getVal('complemento') || null,
