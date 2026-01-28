@@ -7,7 +7,7 @@ async function fetchClientes() {
   const { data, error } = await db.select('clientes', { select: [
     'id, nome, email, telefone, documento, grupo_cliente, tipo_empresa, regime_tributario, observacao, ativo, created_at',
     // novos campos
-    'nome_fantasia, ie, im, cnae, logradouro, numero, complemento, bairro, cep, cidade, uf, tipo_unidade'
+    'nome_fantasia, ie, im, cnae, logradouro, numero, complemento, bairro, cep, cidade, uf, tipo_unidade, data_inicio_contrato'
   ].join(', '), orderBy: { column: 'created_at', ascending: false } });
   if (error) { showToast(error.message || 'Erro ao carregar clientes', 'error'); return []; }
   return data || [];
@@ -153,19 +153,19 @@ function getCliFormValues(modal) {
   };
 }
 
-async function openCreate() {
+async function openCreate(onSuccess) {
   const { modal, close } = createModal({ title: 'Novo Cliente', content: clienteForm(), actions: [
     { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
     { label: 'Salvar', className: 'btn btn-primary', onClick: async ({ close }) => {
       const values = getCliFormValues(modal);
       const { error } = await db.insert('clientes', values);
       if (error) showToast(error.message||'Erro ao salvar', 'error'); else { showToast('Cliente criado', 'success'); close(); }
-      window.location.hash = '#/clientes';
+      if (onSuccess) await onSuccess(); else window.location.hash = '#/clientes';
     }}
   ] });
 }
 
-async function openEdit(row) {
+async function openEdit(row, onSuccess) {
   const { modal, close } = createModal({ title: 'Editar Cliente', content: clienteForm(row), actions: [
     { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
     { label: 'Atualizar', className: 'btn btn-primary', onClick: async ({ close }) => {
@@ -176,7 +176,7 @@ async function openEdit(row) {
       } else {
         showToast('Cliente atualizado', 'success');
         close();
-        window.dispatchEvent(new Event('hashchange'));
+        if (onSuccess) await onSuccess(); else window.dispatchEvent(new Event('hashchange'));
       }
     }}
   ] });
@@ -333,7 +333,7 @@ export async function renderClientes(app) {
       page,
       perPage,
       actions: [
-        { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r) },
+        { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r, async () => await load()) },
         { label: 'Anexos', className: 'btn btn-outline', onClick: r => openAnexosCliente(r) },
         { label: 'Excluir', className: 'btn btn-danger', onClick: async r => {
           const nome = sanitizeText(r.nome || '');
@@ -387,12 +387,13 @@ export async function renderClientes(app) {
       // se o grupo selecionado não existe mais, limpa
       const exists = uniq.includes(fGrupo);
       if (!exists) fGrupo = '';
+      sel.value = fGrupo;
     }
-    page = 1; // reset ao carregar
+    // page = 1; // reset removido para preservar paginação em reloads
     renderList();
   }
 
-  document.getElementById('newCli').addEventListener('click', openCreate);
+  document.getElementById('newCli').addEventListener('click', () => openCreate(async () => await load()));
   document.getElementById('applySearchCli').addEventListener('click', async () => { q = document.getElementById('qCli').value.trim(); page = 1; await load(); });
   document.getElementById('qCli').addEventListener('input', (e) => { q = e.target.value.trim(); page = 1; renderList(); });
   document.getElementById('fGrupoCli').addEventListener('change', (e) => { fGrupo = e.target.value; page = 1; renderList(); });

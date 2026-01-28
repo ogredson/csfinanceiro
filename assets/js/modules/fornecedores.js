@@ -37,19 +37,19 @@ function getFornFormValues(modal) {
   };
 }
 
-async function openCreate() {
+async function openCreate(onSuccess) {
   const { modal, close } = createModal({ title: 'Novo Fornecedor', content: fornecedorForm(), actions: [
     { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
     { label: 'Salvar', className: 'btn btn-primary', onClick: async ({ close }) => {
       const values = getFornFormValues(modal);
       const { error } = await db.insert('fornecedores', values);
       if (error) showToast(error.message||'Erro ao salvar', 'error'); else { showToast('Fornecedor criado', 'success'); close(); }
-      window.location.hash = '#/fornecedores';
+      if (onSuccess) await onSuccess(); else window.location.hash = '#/fornecedores';
     }}
   ] });
 }
 
-async function openEdit(row) {
+async function openEdit(row, onSuccess) {
   const { modal, close } = createModal({ title: 'Editar Fornecedor', content: fornecedorForm(row), actions: [
     { label: 'Cancelar', className: 'btn btn-outline', onClick: () => close() },
     { label: 'Atualizar', className: 'btn btn-primary', onClick: async ({ close }) => {
@@ -60,7 +60,7 @@ async function openEdit(row) {
       } else {
         showToast('Fornecedor atualizado', 'success');
         close();
-        window.dispatchEvent(new Event('hashchange'));
+        if (onSuccess) await onSuccess(); else window.dispatchEvent(new Event('hashchange'));
       }
     }}
   ] });
@@ -122,7 +122,7 @@ export async function renderFornecedores(app) {
       page,
       perPage,
       actions: [
-        { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r) },
+        { label: '✏️ Editar', className: 'btn btn-primary btn-prominent', onClick: r => openEdit(r, async () => await load()) },
         { label: 'Excluir', className: 'btn btn-danger', onClick: async r => {
           const nome = sanitizeText(r.nome || '');
           const { modal, close } = createModal({
@@ -166,11 +166,11 @@ export async function renderFornecedores(app) {
 
   async function load() {
     allRows = await fetchFornecedores();
-    page = 1; // reset ao carregar
+    // page = 1; // reset removido
     renderList();
   }
 
-  document.getElementById('newForn').addEventListener('click', openCreate);
+  document.getElementById('newForn').addEventListener('click', () => openCreate(async () => await load()));
   document.getElementById('applySearchForn').addEventListener('click', async () => { q = document.getElementById('qForn').value.trim(); page = 1; await load(); });
   document.getElementById('qForn').addEventListener('input', (e) => { q = e.target.value.trim(); page = 1; renderList(); });
   await load();
