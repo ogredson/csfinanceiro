@@ -285,6 +285,11 @@ export async function renderClientes(app) {
         <select id="fGrupoCli" style="margin-left:8px">
           <option value="">Todos os grupos</option>
         </select>
+        <select id="fStatusCli" style="margin-left:8px">
+          <option value="">Todos os status</option>
+          <option value="true">Ativos</option>
+          <option value="false">Inativos</option>
+        </select>
         <button id="applySearchCli" class="btn btn-primary btn-prominent">🔎 Pesquisar</button>
       </div>
       <div><button id="newCli" class="btn btn-primary">Novo Cliente</button></div>
@@ -295,11 +300,12 @@ export async function renderClientes(app) {
   let page = 1;
   let q = '';
   let fGrupo = '';
+  let fStatus = '';
   let allRows = [];
 
   function applyFilter(rows = []) {
     // texto livre
-    const base = (() => {
+    let base = (() => {
       if (!q) return rows;
       const term = q.toLowerCase();
       return rows.filter(r => [r.nome, r.nome_fantasia, r.email, r.telefone, r.documento, r.grupo_cliente, r.tipo_empresa, r.regime_tributario]
@@ -307,8 +313,15 @@ export async function renderClientes(app) {
       );
     })();
     // filtro por grupo
-    if (!fGrupo) return base;
-    return base.filter(r => (r.grupo_cliente || '') === fGrupo);
+    if (fGrupo) {
+      base = base.filter(r => (r.grupo_cliente || '') === fGrupo);
+    }
+    // filtro por status
+    if (fStatus !== '') {
+      const isActive = fStatus === 'true';
+      base = base.filter(r => r.ativo === isActive);
+    }
+    return base;
   }
 
   function renderList() {
@@ -389,6 +402,8 @@ export async function renderClientes(app) {
       if (!exists) fGrupo = '';
       sel.value = fGrupo;
     }
+    const selStatus = document.getElementById('fStatusCli');
+    if (selStatus) selStatus.value = fStatus;
     // page = 1; // reset removido para preservar paginação em reloads
     renderList();
   }
@@ -397,5 +412,6 @@ export async function renderClientes(app) {
   document.getElementById('applySearchCli').addEventListener('click', async () => { q = document.getElementById('qCli').value.trim(); page = 1; await load(); });
   document.getElementById('qCli').addEventListener('input', (e) => { q = e.target.value.trim(); page = 1; renderList(); });
   document.getElementById('fGrupoCli').addEventListener('change', (e) => { fGrupo = e.target.value; page = 1; renderList(); });
+  document.getElementById('fStatusCli').addEventListener('change', (e) => { fStatus = e.target.value; page = 1; renderList(); });
   await load();
 }
