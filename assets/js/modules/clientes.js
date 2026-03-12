@@ -334,6 +334,7 @@ export async function renderClientes(app) {
     renderTable(cont, {
       columns: [
         { key: 'nome', label: 'Nome' },
+        { key: 'nome_fantasia', label: 'Fantasia' },
         { key: 'email', label: 'Email' },
         { key: 'telefone', label: 'Telefone' },
         { key: 'documento', label: 'Documento' },
