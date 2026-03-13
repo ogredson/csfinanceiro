@@ -127,14 +127,18 @@ export async function renderDashboard(app) {
 
   const fluxo = await getFluxoCaixaMensal();
   const ctxFluxo = document.getElementById('fluxoChart');
-  renderBarChart(ctxFluxo, fluxo.months, 'Entradas', fluxo.entradas);
-  // sobrepor saídas como dataset secundário
+  try { Chart.getChart?.(ctxFluxo)?.destroy?.(); } catch {}
+  try { Chart.getChart?.('fluxoChart')?.destroy?.(); } catch {}
+
   new Chart(ctxFluxo, { type: 'bar', data: { labels: fluxo.months, datasets: [
     { label: 'Entradas', data: fluxo.entradas, backgroundColor: 'rgba(16,185,129,0.5)' },
     { label: 'Saídas', data: fluxo.saidas, backgroundColor: 'rgba(239,68,68,0.5)' },
   ] }, options: { responsive: true } });
 
   const ctxMrr = document.getElementById('mrrChart');
+  try { Chart.getChart?.(ctxMrr)?.destroy?.(); } catch {}
+  try { Chart.getChart?.('mrrChart')?.destroy?.(); } catch {}
+
   // Placeholder simples — usa MRR atual para preencher linha
   renderAreaChart(ctxMrr, fluxo.months, 'MRR', fluxo.months.map(()=>mrr));
 
